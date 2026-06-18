@@ -1,1 +1,1 @@
-"""MJLab TextOp-style reference tracking playground."""
+"""TextOp motion normalization utilities for MJLab."""

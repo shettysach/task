@@ -22,6 +22,8 @@
           packages = with pkgs; [
             uv
             ty
+            black
+            #
             libglvnd
             mesa
             libx11

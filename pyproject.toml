@@ -5,21 +5,19 @@ build-backend = "uv_build"
 [project]
 name = "mjlab-textop-playground"
 version = "0.1.0"
-description = "TextOp-style motion-reference tracking tasks for MJLab"
+description = "TextOp motion normalization utilities for MJLab"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
-dependencies = []
+dependencies = [
+    "numpy>=2.4.6",
+]
 
 [project.optional-dependencies]
 cpu = ["mjlab", "torch>=2.7.0"]
 cu128 = ["mjlab", "torch>=2.7.0"]
 
-[project.entry-points."mjlab.tasks"]
-mjlab_textop_playground = "mjlab_textop_playground.tasks"
-
 [project.scripts]
-demo-dummy-textop = "mjlab_textop_playground.scripts.demo_dummy_textop:main"
-inspect-reference = "mjlab_textop_playground.scripts.inspect_reference:main"
+normalize-textop-npz = "mjlab_textop_playground.scripts.normalize_textop_npz:main"
 
 [tool.uv.sources]
 mjlab = { git = "https://github.com/mujocolab/mjlab", rev = "0cdc56246999409b83622764f5b38edb660cf16e" }
