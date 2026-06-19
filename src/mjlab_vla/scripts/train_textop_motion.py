@@ -64,45 +64,50 @@ TextOpCommandType = tyro.extras.subcommand_type_from_defaults(
 
 
 def run_textop_motion(cfg: TextOpCommand) -> None:
-    """Normalize TextOp motion data or run MJLab train/play against it."""
+    match cfg:
+        case NormalizeCommand():
+            normalized_file = Path(cfg.normalized_motion_file).expanduser()
+            input_file = Path(cfg.data_dir).expanduser() / cfg.motion_rel
+            normalize_textop_npz(
+                input_file=str(input_file),
+                output_file=str(normalized_file),
+                device=cfg.device,
+            )
+            return
 
-    if isinstance(cfg, NormalizeCommand):
-        normalized_file = Path(cfg.normalized_motion_file).expanduser()
-        input_file = Path(cfg.data_dir).expanduser() / cfg.motion_rel
-        normalize_textop_npz(
-            input_file=str(input_file),
-            output_file=str(normalized_file),
-            device=cfg.device,
-        )
-        return
+        case TrainCommand():
+            normalized_file = Path(cfg.normalized_motion_file).expanduser()
+            if not normalized_file.exists():
+                raise FileNotFoundError(
+                    f"Normalized motion file does not exist: {normalized_file}."
+                )
 
-    if isinstance(cfg, EvalCommand):
-        evaluate_textop_motion(cfg)
-        return
+            _train(
+                motion_file=normalized_file,
+                train_cfg=cfg,
+            )
+            return
 
-    normalized_file = Path(cfg.normalized_motion_file).expanduser()
-    if not normalized_file.exists():
-        raise FileNotFoundError(
-            f"Normalized motion file does not exist: {normalized_file}. "
-            "Run `textop-tracking normalize` to create it, or set "
-            "`--normalized-motion-file` to an existing MJLab motion NPZ."
-        )
+        case PlayCommand():
+            normalized_file = Path(cfg.normalized_motion_file).expanduser()
+            if not normalized_file.exists():
+                raise FileNotFoundError(
+                    f"Normalized motion file does not exist: {normalized_file}."
+                )
 
-    if isinstance(cfg, TrainCommand):
-        _train(
-            motion_file=normalized_file,
-            train_cfg=cfg,
-        )
-        return
+            if cfg.checkpoint_file is None:
+                raise ValueError("`--checkpoint-file` is required for play")
 
-    if cfg.checkpoint_file is None:
-        raise ValueError("`--checkpoint-file` is required for play")
-    _play(
-        motion_file=normalized_file,
-        checkpoint_file=Path(cfg.checkpoint_file).expanduser(),
-        play_cfg=cfg,
-        device=cfg.device,
-    )
+            _play(
+                motion_file=normalized_file,
+                checkpoint_file=Path(cfg.checkpoint_file).expanduser(),
+                play_cfg=cfg,
+                device=cfg.device,
+            )
+
+        case EvalCommand():
+            evaluate_textop_motion(cfg)
+            return
 
 
 def _train(
@@ -110,9 +115,11 @@ def _train(
     train_cfg: TrainCommand,
 ) -> None:
     cfg = TrainConfig.from_task("Mjlab-Tracking-Flat-Unitree-G1")
+
     motion_cmd = cfg.env.commands["motion"]
     assert isinstance(motion_cmd, MotionCommandCfg)
     motion_cmd.motion_file = str(motion_file)
+
     cfg.env.scene.num_envs = train_cfg.num_envs
     cfg.agent.max_iterations = train_cfg.max_iterations
     cfg.agent.logger = train_cfg.logger
