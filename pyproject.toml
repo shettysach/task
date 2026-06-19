@@ -17,8 +17,7 @@ cpu = ["mjlab", "torch>=2.7.0"]
 cu128 = ["mjlab", "torch>=2.7.0"]
 
 [project.scripts]
-normalize-textop-npz = "mjlab_vla.scripts.normalize_textop_npz:main"
-textop-tracking = "mjlab_vla.scripts.train_textop_motion:main"
+textop-tracking = "mjlab_vla.scripts.cli:main"
 
 [tool.uv.sources]
 mjlab = { git = "https://github.com/mujocolab/mjlab", rev = "0cdc56246999409b83622764f5b38edb660cf16e" }

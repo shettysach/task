@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
 import torch
+import tyro
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg, load_runner_cls
-from mjlab.tasks.tracking.mdp import MotionCommandCfg
 from mjlab.tasks.tracking.mdp.commands import MotionCommand
 from mjlab.tasks.tracking.mdp.metrics import (
     compute_ee_orientation_error,
@@ -21,38 +21,31 @@ from mjlab.tasks.tracking.mdp.metrics import (
 )
 from mjlab.utils.torch import configure_torch_backends
 
+from mjlab_vla.scripts.config import NormalizedMotionConfig
+from mjlab_vla.tracking import TASK_NAME, get_motion_command_cfg, set_motion_file
 
-@dataclass
-class EvalCommand:
-    normalized_motion_file: str = "/tmp/textop_walk_mjlab.npz"
-    checkpoint_file: str | None = None
+
+@dataclass(kw_only=True)
+class EvalCommand(NormalizedMotionConfig):
+    checkpoint_file: str = field(default=tyro.MISSING)
     device: str = "cuda:0"
     num_envs: int = 1024
     output_file: str | None = None
     enable_corruption: bool = True
 
 
-def evaluate_textop_motion(cfg: EvalCommand) -> dict[str, float]:
-    if cfg.checkpoint_file is None:
-        raise ValueError("`--checkpoint-file` is required for eval")
-
-    motion_file = Path(cfg.normalized_motion_file).expanduser()
-
-    if not motion_file.exists():
-        raise FileNotFoundError(f"Normalized motion file not found: {motion_file}")
-
-    checkpoint_file = Path(cfg.checkpoint_file).expanduser()
-
-    if not checkpoint_file.exists():
-        raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_file}")
-
+def evaluate_textop_motion(
+    cfg: EvalCommand,
+    *,
+    motion_file: Path,
+    checkpoint_file: Path,
+) -> dict[str, float]:
     configure_torch_backends()
-    env_cfg = load_env_cfg("Mjlab-Tracking-Flat-Unitree-G1", play=False)
-    agent_cfg = load_rl_cfg("Mjlab-Tracking-Flat-Unitree-G1")
+    env_cfg = load_env_cfg(TASK_NAME, play=False)
+    agent_cfg = load_rl_cfg(TASK_NAME)
 
-    motion_cmd = env_cfg.commands["motion"]
-    assert isinstance(motion_cmd, MotionCommandCfg)
-    motion_cmd.motion_file = str(motion_file)
+    set_motion_file(env_cfg, motion_file)
+    motion_cmd = get_motion_command_cfg(env_cfg.commands)
     motion_cmd.sampling_mode = "start"
     env_cfg.observations["actor"].enable_corruption = cfg.enable_corruption
     env_cfg.events.pop("push_robot", None)
@@ -61,9 +54,7 @@ def evaluate_textop_motion(cfg: EvalCommand) -> dict[str, float]:
     env = ManagerBasedRlEnv(cfg=env_cfg, device=cfg.device)
     wrapped_env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
     try:
-        runner_cls = (
-            load_runner_cls("Mjlab-Tracking-Flat-Unitree-G1") or MjlabOnPolicyRunner
-        )
+        runner_cls = load_runner_cls(TASK_NAME) or MjlabOnPolicyRunner
         runner = runner_cls(wrapped_env, asdict(agent_cfg), device=cfg.device)
         runner.load(
             str(checkpoint_file),
@@ -82,6 +73,7 @@ def evaluate_textop_motion(cfg: EvalCommand) -> dict[str, float]:
             ee_body_names=ee_body_names,
             num_envs=cfg.num_envs,
             device=cfg.device,
+            max_steps=2000,
         )
     finally:
         wrapped_env.close()
@@ -104,6 +96,7 @@ def _run_eval_rollout(
     ee_body_names: tuple[str, ...],
     num_envs: int,
     device: str,
+    max_steps: int,
 ) -> dict[str, float]:
     all_mpkpe: list[torch.Tensor] = []
     all_r_mpkpe: list[torch.Tensor] = []
@@ -119,6 +112,13 @@ def _run_eval_rollout(
     step = 0
     print(f"[INFO] Running {num_envs} evaluation episodes...")
     while not done_envs.all():
+        if step >= max_steps:
+            print(
+                f"[WARNING] Evaluation reached max_steps={max_steps} before all "
+                "episodes completed."
+            )
+            break
+
         ref = SimpleNamespace(
             num_envs=command.num_envs,
             device=command.device,

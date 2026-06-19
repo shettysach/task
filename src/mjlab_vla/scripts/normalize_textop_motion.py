@@ -1,25 +1,39 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
-import mjlab
 import numpy as np
 import torch
-import tyro
 from mjlab.entity import Entity
 from mjlab.scene import Scene
 from mjlab.sim.sim import Simulation, SimulationCfg
 from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env_cfg
 
+from mjlab_vla.scripts.config import NormalizedMotionConfig
 from mjlab_vla.textop_motion import (
     MJLAB_G1_JOINT_NAMES,
     load_textop_motion,
 )
 
+DEFAULT_MOTION_REL = (
+    "TextOpTracker/artifacts/Data10k-open/"
+    "homejrhangmr_dataset_pbhc_contact_maskACCADFemale1Walking_c3dB3-walk1_posespkl/"
+    "motion.npz"
+)
+
+
+@dataclass(kw_only=True)
+class NormalizeCommand(NormalizedMotionConfig):
+    motion_rel: str = DEFAULT_MOTION_REL
+    data_dir: str = "/tmp/textop-data"
+    device: str = "cuda:0"
+
 
 def normalize_textop_npz(
-    input_file: str,
-    output_file: str = "/tmp/textop_mjlab_motion.npz",
+    input_file: Path,
+    output_file: Path,
+    *,
     fps: float | None = None,
     device: str = "cuda:0",
     max_frames: int | None = None,
@@ -48,9 +62,7 @@ def normalize_textop_npz(
     scene.reset()
 
     robot: Entity = scene["robot"]
-    robot_joint_indexes = robot.find_joints(MJLAB_G1_JOINT_NAMES, preserve_order=True)[
-        0
-    ]
+    robot_joint_idxs = robot.find_joints(MJLAB_G1_JOINT_NAMES, preserve_order=True)[0]
 
     log: dict[str, list[np.ndarray] | list[float] | np.ndarray] = {
         "fps": [output_fps],
@@ -80,10 +92,10 @@ def normalize_textop_npz(
 
         joint_pos = robot.data.default_joint_pos.clone()
         joint_vel = robot.data.default_joint_vel.clone()
-        joint_pos[:, robot_joint_indexes] = torch.as_tensor(
+        joint_pos[:, robot_joint_idxs] = torch.as_tensor(
             motion.joint_pos[frame], dtype=torch.float32, device=sim.device
         ).unsqueeze(0)
-        joint_vel[:, robot_joint_indexes] = torch.as_tensor(
+        joint_vel[:, robot_joint_idxs] = torch.as_tensor(
             motion.joint_vel[frame], dtype=torch.float32, device=sim.device
         ).unsqueeze(0)
         robot.write_joint_state_to_sim(joint_pos, joint_vel)
@@ -103,12 +115,11 @@ def normalize_textop_npz(
     ):
         log[key] = np.stack(log[key], axis=0)  # ty:ignore[no-matching-overload]
 
-    output_path = Path(output_file).expanduser().resolve()
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(output_path, **log)  # ty:ignore[invalid-argument-type]
-    print(f"Saved MJLab-native motion to {output_path}")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(output_file, **log)  # ty:ignore[invalid-argument-type]
+    print(f"Saved MJLab-native motion to {output_file}")
     print(f"Frames: {frame_count}, fps: {output_fps:g}")
-    return output_path
+    return output_file
 
 
 def _append_frame(
@@ -131,11 +142,3 @@ def _append_frame(
     log["body_ang_vel_w"].append(
         robot.data.body_link_ang_vel_w[0, :].cpu().numpy().copy()
     )
-
-
-def main() -> None:
-    tyro.cli(normalize_textop_npz, config=mjlab.TYRO_FLAGS)
-
-
-if __name__ == "__main__":
-    main()

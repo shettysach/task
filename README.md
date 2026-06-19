@@ -11,7 +11,7 @@ existing `MotionCommand` task, rewards, metrics, and play/train/evaluate flow.
 
 ```text
 TextOp tracker NPZ
-  -> normalize-textop-npz
+  -> textop-tracking normalize
   -> MJLab-native motion.npz
   -> Mjlab-Tracking-Flat-Unitree-G1
   -> MJLab MotionCommand
