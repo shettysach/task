@@ -10,7 +10,7 @@ from mjlab.scene import Scene
 from mjlab.sim.sim import Simulation, SimulationCfg
 from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env_cfg
 
-from mjlab_vla.textop.motion import (
+from mjlab_vla.textop.script.motion import (
     MJLAB_G1_JOINT_NAMES,
     load_textop_motion,
 )

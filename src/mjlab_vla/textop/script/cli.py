@@ -5,13 +5,13 @@ from typing import TypeAlias
 
 import tyro
 
-from mjlab_vla.textop.eval import EvalCommand, evaluate_textop_motion
-from mjlab_vla.textop.normalize import (
+from mjlab_vla.textop.script.eval import EvalCommand, evaluate_textop_motion
+from mjlab_vla.textop.script.normalize import (
     NormalizeCommand,
     normalize_textop_npz,
 )
-from mjlab_vla.textop.play import PlayCommand, play_textop_motion
-from mjlab_vla.textop.train import TrainCommand, train_textop_motion
+from mjlab_vla.textop.script.play import PlayCommand, play_textop_motion
+from mjlab_vla.textop.script.train import TrainCommand, train_textop_motion
 
 TextOpCommand: TypeAlias = NormalizeCommand | TrainCommand | PlayCommand | EvalCommand
 

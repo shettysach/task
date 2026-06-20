@@ -10,7 +10,7 @@ from mjlab_vla.textop.contract import (
     TEXTOP_REQUIRED_INPUT_KEYS,
     validate_textop_contract,
 )
-from mjlab_vla.textop.motion import (
+from mjlab_vla.textop.script.motion import (
     MJLAB_G1_JOINT_NAMES,
     TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX,
     load_textop_motion,
