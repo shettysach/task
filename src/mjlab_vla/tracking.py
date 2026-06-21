@@ -4,8 +4,6 @@ from pathlib import Path
 
 from mjlab.tasks.tracking.mdp import MotionCommandCfg
 
-TASK_NAME = "Mjlab-Tracking-Flat-Unitree-G1"
-
 
 def get_motion_command_cfg(commands) -> MotionCommandCfg:
     motion_cmd = commands["motion"]

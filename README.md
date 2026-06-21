@@ -63,6 +63,7 @@ Then use the registered TextOp-flavored MJLab task:
 ```bash
 uv run --extra cpu play Mjlab-TextOp-Flat-Unitree-G1 \
   --agent zero \
+  --motion-file /tmp/textop_walk_mjlab.npz \
   --num-envs 1 \
   --no-terminations True
 ```
