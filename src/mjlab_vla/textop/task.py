@@ -173,6 +173,10 @@ def _configure_textop_critic_observations(cfg) -> None:
 
 
 def _configure_online_textop_tracking_terms(cfg) -> None:
+    critic_terms = cfg.observations["critic"].terms
+    critic_terms.pop("body_pos", None)
+    critic_terms.pop("body_ori", None)
+
     for reward_name in (
         "motion_body_pos",
         "motion_body_ori",

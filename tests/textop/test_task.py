@@ -47,6 +47,8 @@ def test_online_textop_task_removes_full_body_tracking_terms() -> None:
     ensure_textop_task_registered()
     env_cfg = load_env_cfg(ONLINE_TEXTOP_TASK_NAME)
 
+    assert "body_pos" not in env_cfg.observations["critic"].terms
+    assert "body_ori" not in env_cfg.observations["critic"].terms
     assert "motion_global_root_pos" in env_cfg.rewards
     assert "motion_global_root_ori" in env_cfg.rewards
     assert "motion_body_pos" not in env_cfg.rewards
