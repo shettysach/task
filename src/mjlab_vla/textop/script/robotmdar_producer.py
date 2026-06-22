@@ -5,6 +5,7 @@ import socket
 import threading
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -87,10 +88,12 @@ def run_producer(args: argparse.Namespace) -> None:
     get_zero_abs_pose = imports["get_zero_abs_pose"]
     get_zero_feature = imports["get_zero_feature"]
 
+    _register_hydra_resolvers(OmegaConf)
     cfg = OmegaConf.load(Path(args.ckpt).parent / ".hydra" / "config.yaml")
     cfg.device = args.device
     cfg.ckpt.dar = args.ckpt
     cfg.train.manager.device = args.device
+    cfg.train.manager.save_dir = str(Path.cwd() / "logs" / "robotmdar_producer")
     cfg.train.manager.platform._target_ = "robotmdar.train.train_platforms.NoPlatform"
     cfg.data.datadir = args.datadir
     cfg.skeleton.asset.assetRoot = args.skeleton_asset_root
@@ -213,6 +216,19 @@ def _load_robotmdar_imports() -> dict[str, object]:
         "encode_text": encode_text,
         "load_and_freeze_clip": load_and_freeze_clip,
     }
+
+
+def _register_hydra_resolvers(OmegaConf) -> None:
+    if not OmegaConf.has_resolver("hydra"):
+        OmegaConf.register_new_resolver(
+            "hydra",
+            lambda key: str(Path.cwd()) if key == "runtime.cwd" else "",
+        )
+    if not OmegaConf.has_resolver("now"):
+        OmegaConf.register_new_resolver(
+            "now",
+            lambda fmt: datetime.now().strftime(fmt),
+        )
 
 
 def _prompt_loop(prompt: PromptState) -> None:
