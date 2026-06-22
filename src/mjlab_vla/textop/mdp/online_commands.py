@@ -7,7 +7,7 @@ import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 
-from mjlab_vla.textop.contract import TEXTOP_FUTURE_STEPS
+from mjlab_vla.textop.contract import TEXTOP_FUTURE_STEPS, TEXTOP_G1_JOINT_COUNT
 from mjlab_vla.textop.online.buffer import (
     TextOpRollingMotionBuffer,
 )
@@ -177,7 +177,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         if not self._started:
-            raise RuntimeError("Online TextOp command is waiting for startup frames")
+            return self._startup_future()
 
         joint_pos, joint_vel, anchor_pos_w, anchor_quat_w, stale_steps = (
             self.buffer.get_future(self.current_frame, self.cfg.future_steps)
@@ -195,6 +195,17 @@ class OnlineTextOpMotionCommand(CommandTerm):
                 "Online TextOp future window exceeded max consecutive stale "
                 f"steps: {self._consecutive_stale_steps} > {self.cfg.max_stale_steps}"
             )
+        return joint_pos, joint_vel, anchor_pos_w, anchor_quat_w
+
+    def _startup_future(
+        self,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        dtype = self.robot_anchor_pos_w.dtype
+        joint_shape = (self.cfg.future_steps, TEXTOP_G1_JOINT_COUNT)
+        joint_pos = torch.zeros(joint_shape, device=self.device, dtype=dtype)
+        joint_vel = torch.zeros(joint_shape, device=self.device, dtype=dtype)
+        anchor_pos_w = self.robot_anchor_pos_w[0].expand(self.cfg.future_steps, -1)
+        anchor_quat_w = self.robot_anchor_quat_w[0].expand(self.cfg.future_steps, -1)
         return joint_pos, joint_vel, anchor_pos_w, anchor_quat_w
 
     def _align_reference_anchor(self) -> None:

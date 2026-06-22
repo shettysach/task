@@ -165,6 +165,25 @@ def test_online_command_polls_source_and_exposes_five_step_window() -> None:
     assert command.current_frame == 1
 
 
+def test_online_command_exposes_startup_window_before_source_poll() -> None:
+    source = QueueTextOpOnlineSource([motion_block(frames=8)])
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(source=source, future_steps=5),
+        fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
+    )
+
+    assert command.future_joint_pos.shape == (1, 5, 29)
+    assert command.future_joint_vel.shape == (1, 5, 29)
+    assert command.future_anchor_pos_w.shape == (1, 5, 3)
+    assert command.future_anchor_quat_w.shape == (1, 5, 4)
+    assert command.buffer.frame_count == 0
+    torch.testing.assert_close(command.future_joint_pos, torch.zeros(1, 5, 29))
+    torch.testing.assert_close(
+        command.future_anchor_pos_w,
+        torch.tensor([[[10.0, 20.0, 30.0]]]).expand(1, 5, 3),
+    )
+
+
 def test_online_command_aligns_anchor_position_to_robot_start() -> None:
     source = QueueTextOpOnlineSource([motion_block(frames=8, offset=100.0)])
     command = OnlineTextOpMotionCommand(
