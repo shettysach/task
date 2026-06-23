@@ -125,16 +125,18 @@ producer in the TextOp/RobotMDAR Python environment:
 #### Setup
 
 ```bash
-cd ../ # Don't clone within the mjlab_textop repo
-git clone https://github.com/TeleHuman/TextOp.git
+cd .. # Don't clone within the mjlab_textop repo
+git clone --recurse-submodules https://github.com/TeleHuman/TextOp.git
 cd TextOp
 
-uv sync --python 3.10
+uv venv --python 3.10
+
+uv pip install torch
 uv pip install -e ./deps/isaac_utils
 uv pip install git+https://github.com/openai/CLIP.git
-uv pip install ./TextOpRobotMDAR
+uv pip install -e ./TextOpRobotMDAR
 
-# Download the checkpoint files
+# Download
 uvx hf download Yochish/TextOp-Data \
   --repo-type dataset \
   --local-dir /tmp/textop-data \
@@ -142,12 +144,12 @@ uvx hf download Yochish/TextOp-Data \
   --include 'TextOpRobotMDAR/dataset/**' \
   --include 'TextOpRobotMDAR/description/**'
 
-uv run --extra cu128mjlab-textop-robotmdar \
+export PYTHONPATH="../mjlab_textop/src:$PYTHONPATH"
+
+uv run python -m mjlab_textop.scripts.robotmdar_producer \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1
-
-export PYTHONPATH="../mjlab_textop/src:$PYTHONPATH"
 ```
 
 Then run MJLab in this repo's environment:
