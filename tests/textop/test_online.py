@@ -275,6 +275,33 @@ def test_online_command_replay_allows_stale_windows_at_clip_end() -> None:
     assert command.future_joint_pos.shape == (1, 5, 29)
 
 
+def test_online_command_replay_does_not_evict_preloaded_frames() -> None:
+    blocks = [
+        motion_block(index=block_index * 64, frames=64, offset=float(block_index * 1000))
+        for block_index in range(16)
+    ]
+    source = QueueTextOpOnlineSource(blocks)
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(
+            source=source,
+            source_mode="replay",
+            future_steps=5,
+            max_poll_blocks=16,
+            max_buffer_frames=32,
+        ),
+        fake_env(),
+    )
+
+    command._update_command()
+
+    assert command._started is True
+    assert command.current_frame == 0
+    assert command.buffer.max_frames is None
+    assert command.buffer.earliest_index == 0
+    assert command.buffer.frame_count == 1024
+    assert command.future_joint_pos.shape == (1, 5, 29)
+
+
 def test_online_command_rejects_replay_source_without_reset() -> None:
     with pytest.raises(TypeError, match="implement reset"):
         OnlineTextOpMotionCommandCfg(

@@ -75,9 +75,12 @@ class OnlineTextOpMotionCommand(CommandTerm):
 
         self.robot = env.scene[cfg.entity_name]
         self.robot_anchor_body_index = self.robot.body_names.index(cfg.anchor_body_name)
+        max_buffer_frames = (
+            None if self.cfg.source_mode == "replay" else self.cfg.max_buffer_frames
+        )
         self.buffer = TextOpRollingMotionBuffer(
             device=self.device,
-            max_frames=self.cfg.max_buffer_frames,
+            max_frames=max_buffer_frames,
         )
         self.current_frame = int(self.cfg.start_frame)
         self._started = False
