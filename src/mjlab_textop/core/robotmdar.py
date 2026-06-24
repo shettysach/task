@@ -15,13 +15,47 @@ from mjlab_textop.core.motion import (
 )
 from mjlab_textop.core.online.source import TextOpMotionBlock
 
-ROBOTMDAR_DOF_COUNT = 23
-ROBOTMDAR_G1_DOF_INDEX: tuple[int, ...] = (
-    *range(19),
-    22,
-    23,
-    24,
-    25,
+
+def _robotmdar_link_name_to_mjlab_joint_name(link_name: str) -> str:
+    if link_name == "torso_link":
+        return "waist_pitch_joint"
+    if link_name.endswith("_link"):
+        return link_name.removesuffix("_link") + "_joint"
+    raise ValueError(f"Unexpected RobotMDAR DoF link name: {link_name}")
+
+
+ROBOTMDAR_G1_DOF_LINK_NAMES: tuple[str, ...] = (
+    "left_hip_pitch_link",
+    "left_hip_roll_link",
+    "left_hip_yaw_link",
+    "left_knee_link",
+    "left_ankle_pitch_link",
+    "left_ankle_roll_link",
+    "right_hip_pitch_link",
+    "right_hip_roll_link",
+    "right_hip_yaw_link",
+    "right_knee_link",
+    "right_ankle_pitch_link",
+    "right_ankle_roll_link",
+    "waist_yaw_link",
+    "waist_roll_link",
+    "torso_link",
+    "left_shoulder_pitch_link",
+    "left_shoulder_roll_link",
+    "left_shoulder_yaw_link",
+    "left_elbow_link",
+    "right_shoulder_pitch_link",
+    "right_shoulder_roll_link",
+    "right_shoulder_yaw_link",
+    "right_elbow_link",
+)
+ROBOTMDAR_G1_DOF_NAMES: tuple[str, ...] = tuple(
+    _robotmdar_link_name_to_mjlab_joint_name(name)
+    for name in ROBOTMDAR_G1_DOF_LINK_NAMES
+)
+ROBOTMDAR_DOF_COUNT = len(ROBOTMDAR_G1_DOF_NAMES)
+ROBOTMDAR_G1_DOF_INDEX: tuple[int, ...] = tuple(
+    MJLAB_G1_JOINT_NAMES.index(name) for name in ROBOTMDAR_G1_DOF_NAMES
 )
 
 

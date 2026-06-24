@@ -12,6 +12,7 @@ from mjlab_textop.core.motion import (
 from mjlab_textop.core.online.source import TextOpMotionBlock
 from mjlab_textop.core.robotmdar import (
     ROBOTMDAR_G1_DOF_INDEX,
+    ROBOTMDAR_G1_DOF_LINK_NAMES,
     ROBOTMDAR_G1_DOF_NAMES,
     expand_robotmdar_dof_to_mjlab_g1,
     robotmdar_motion_dict_to_block,
@@ -21,6 +22,31 @@ from mjlab_textop.core.robotmdar import (
 
 
 def test_robotmdar_dof_indices_are_derived_from_joint_names() -> None:
+    assert ROBOTMDAR_G1_DOF_LINK_NAMES == (
+        "left_hip_pitch_link",
+        "left_hip_roll_link",
+        "left_hip_yaw_link",
+        "left_knee_link",
+        "left_ankle_pitch_link",
+        "left_ankle_roll_link",
+        "right_hip_pitch_link",
+        "right_hip_roll_link",
+        "right_hip_yaw_link",
+        "right_knee_link",
+        "right_ankle_pitch_link",
+        "right_ankle_roll_link",
+        "waist_yaw_link",
+        "waist_roll_link",
+        "torso_link",
+        "left_shoulder_pitch_link",
+        "left_shoulder_roll_link",
+        "left_shoulder_yaw_link",
+        "left_elbow_link",
+        "right_shoulder_pitch_link",
+        "right_shoulder_roll_link",
+        "right_shoulder_yaw_link",
+        "right_elbow_link",
+    )
     assert ROBOTMDAR_G1_DOF_INDEX == tuple(
         MJLAB_G1_JOINT_NAMES.index(name) for name in ROBOTMDAR_G1_DOF_NAMES
     )
