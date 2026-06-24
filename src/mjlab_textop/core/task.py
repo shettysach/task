@@ -43,7 +43,6 @@ def make_textop_g1_flat_tracking_env_cfg(
     _configure_textop_anchor(cfg)
     _configure_textop_actor_observations(cfg)
     _configure_textop_critic_observations(cfg)
-    _configure_online_textop_tracking_terms(cfg)
 
     return cfg
 
@@ -145,7 +144,7 @@ def register_online_textop_replay_task(
 # but note, MJLab's base G1 tracking task uses torso_link
 def _configure_textop_anchor(cfg) -> None:
     motion_cmd = cfg.commands["motion"]
-    motion_cmd.anchor_body_name = "pelvis"
+    motion_cmd.anchor_body_name = "torso_link"
 
 
 def _configure_textop_actor_observations(cfg) -> None:
