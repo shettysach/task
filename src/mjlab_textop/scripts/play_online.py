@@ -17,7 +17,7 @@ from mjlab_textop.core.task import (
 
 @dataclass(kw_only=True)
 class PlayOnlineCommand:
-    normalized_motion_file: str = field(default=tyro.MISSING)
+    motion_file: str = field(default=tyro.MISSING)
     checkpoint_file: str = field(default=tyro.MISSING)
     device: str = "cuda:0"
     num_envs: int = 1

@@ -57,7 +57,7 @@ def run_textop_motion(cfg: TextOpCommand) -> None:
 
         case PlayOnlineCommand():
             motion_file = verify_path(
-                cfg.normalized_motion_file,
+                cfg.motion_file,
                 "Normalized motion file",
             )
             checkpoint_file = verify_path(
@@ -84,7 +84,7 @@ def run_textop_motion(cfg: TextOpCommand) -> None:
 
         case EvalCommand():
             motion_file = verify_path(
-                cfg.normalized_motion_file,
+                cfg.motion_file,
                 "Normalized motion file",
             )
             checkpoint_file = verify_path(

@@ -26,7 +26,7 @@ from mjlab_textop.core.task import TEXTOP_TASK_NAME, ensure_textop_task_register
 
 @dataclass(kw_only=True)
 class EvalCommand:
-    normalized_motion_file: str = field(default=tyro.MISSING)
+    motion_file: str = field(default=tyro.MISSING)
     checkpoint_file: str = field(default=tyro.MISSING)
     device: str = "cuda:0"
     num_envs: int = 1024

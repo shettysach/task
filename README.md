@@ -66,7 +66,7 @@ uvx hf download Yochish/TextOp-Data \
 
 uv run --extra cu128 mjlab-textop normalize \
   --motion-file /tmp/textop-data/TextOpTracker/artifacts/Data10k-open/homejrhangmr_dataset_pbhc_contact_maskACCADFemale1Walking_c3dB3-walk1_posespkl/motion.npz \
-  --normalized-motion-file ./outputs/walk_mjlab.npz
+  --motion-file ./outputs/walk_mjlab.npz
 ```
 
 The normalizer expects TextOp's canonical tracker NPZ fields. It reorders
@@ -120,7 +120,7 @@ Replay the normalized motion through the online TextOp reference buffer:
 ```bash
 uv run --extra cu128 mjlab-textop play-online \
   --checkpoint-file $CHECKPOINT \
-  --normalized-motion-file ./outputs/walk_mjlab.npz
+  --motion-file ./outputs/walk_mjlab.npz
 ```
 
 ### `play-live`
@@ -178,7 +178,7 @@ Run a headless evaluation against the normalized motion:
 ```bash
 uv run --extra cu128 mjlab-textop eval \
   --checkpoint-file $CHECKPOINT \
-  --normalized-motion-file ./outputs/walk_mjlab.npz \
+  --motion-file ./outputs/walk_mjlab.npz \
   --num-envs 1024 \
   --output-file logs/textop_eval.json
 ```
