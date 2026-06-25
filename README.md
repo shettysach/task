@@ -18,7 +18,7 @@ The integration supports three paths:
 
 ```text
 TextOp tracker NPZ
-  -> mjlab-textop normalize
+  -> mjlab-textop normalize-tracker-npz
   -> MJLab-native motion.npz
   -> Mjlab-TextOp-Flat-Unitree-G1
   -> TextOpMotionCommand
@@ -34,7 +34,7 @@ RobotMDAR text prompt
 RobotMDAR text prompt
   -> mjlab_textop.scripts.robotmdar_record
   -> raw RobotMDAR reference NPZ
-  -> mjlab-textop normalize-robotmdar-record
+  -> mjlab-textop normalize-robotmdar-npz
   -> MJLab-native train-ready motion.npz
   -> Mjlab-TextOp-Flat-Unitree-G1
 ```
@@ -63,7 +63,7 @@ CPU and CUDA torch indexes during lock resolution.
 
 ## Commands
 
-### `normalize`
+### `normalize-tracker-npz`
 
 Download a TextOp tracker NPZ and convert it into MJLab's native tracking format:
 
@@ -73,7 +73,7 @@ uvx hf download Yochish/TextOp-Data \
   --include 'TextOpTracker/artifacts/Data10k-open/homejrhangmr_dataset_pbhc_contact_maskACCADFemale1Walking_c3dB3-walk1_posespkl/motion.npz' \
   --local-dir /tmp/textop-data
 
-uv run --extra cu128 mjlab-textop normalize \
+uv run --extra cu128 mjlab-textop normalize-tracker-npz \
   --motion-file /tmp/textop-data/TextOpTracker/artifacts/Data10k-open/homejrhangmr_dataset_pbhc_contact_maskACCADFemale1Walking_c3dB3-walk1_posespkl/motion.npz \
   --normalized-motion-file ./outputs/walk_mjlab.npz
 ```
@@ -105,13 +105,13 @@ uv run python -m mjlab_textop.scripts.robotmdar_record \
 The raw record stores `joint_pos`, `joint_vel`, `anchor_pos_w`, and
 `anchor_quat_w`. Joint arrays remain in TextOp/IsaacLab G1 order.
 
-### `normalize-robotmdar-record`
+### `normalize-robotmdar-npz`
 
 Convert a raw RobotMDAR record into the full MJLab train-ready NPZ. Run this in
 the MJLab environment:
 
 ```bash
-uv run --extra cu128 mjlab-textop normalize-robotmdar-record \
+uv run --extra cu128 mjlab-textop normalize-robotmdar-npz \
   --recorded-motion-file ./outputs/robotmdar_walk_raw.npz \
   --normalized-motion-file ./outputs/robotmdar_walk_train_ready.npz
 ```
@@ -145,9 +145,11 @@ To finetune from a previous run:
 uv run --extra cu128 train Mjlab-TextOp-Flat-Unitree-G1 \
   --env.commands.motion.motion-file ./outputs/walk_mjlab.npz \
   --agent.resume True \
+  --env.scene.num-envs 4096 \
+  --agent.max-iterations 3000 \
+  --agent.experiment-name textop_tracking \
   --agent.load-run '.*walk_scratch.*' \
   --agent.load-checkpoint 'model_.*.pt' \
-  --agent.experiment-name textop_tracking \
   --agent.run-name walk_finetune
 ```
 

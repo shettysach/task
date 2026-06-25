@@ -11,11 +11,14 @@ from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env
 
 from mjlab_textop.core.contract import MJLAB_G1_JOINT_NAMES
 from mjlab_textop.core.motion import reindex_textop_g1_joints_to_mjlab
-from mjlab_textop.core.normalize import _append_frame, _validate_normalized_output
+from mjlab_textop.core.normalize_tracker_npz import (
+    _append_frame,
+    _validate_normalized_output,
+)
 from mjlab_textop.core.robotmdar_record import load_robotmdar_raw_record
 
 
-def normalize_robotmdar_record_npz(
+def normalize_robotmdar_npz(
     input_file: Path,
     output_file: Path,
     *,
@@ -111,6 +114,9 @@ def normalize_robotmdar_record_npz(
     print(f"Saved MJLab-native RobotMDAR motion to {output_file}")
     print(f"Frames: {frame_count}, fps: {record.fps:g}")
     return output_file
+
+
+normalize_robotmdar_record_npz = normalize_robotmdar_npz
 
 
 def _finite_difference_linear_velocity(pos: np.ndarray, fps: float) -> np.ndarray:

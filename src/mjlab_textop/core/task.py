@@ -40,7 +40,6 @@ def make_textop_g1_flat_tracking_env_cfg(
         command_name="motion",
         future_steps=future_steps,
     )
-    cfg.commands["motion"].anchor_body_name = "torso_link"
     _configure_textop_actor_observations(cfg)
     _configure_textop_critic_observations(cfg)
 

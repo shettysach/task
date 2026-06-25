@@ -13,7 +13,7 @@ from mjlab_textop.core.contract import MJLAB_G1_JOINT_NAMES
 from mjlab_textop.core.motion import load_textop_motion
 
 
-def normalize_textop_npz(
+def normalize_tracker_npz(
     input_file: Path,
     output_file: Path,
     *,
@@ -104,6 +104,9 @@ def normalize_textop_npz(
     print(f"Saved MJLab-native motion to {output_file}")
     print(f"Frames: {frame_count}, fps: {output_fps:g}")
     return output_file
+
+
+normalize_textop_npz = normalize_tracker_npz
 
 
 def _append_frame(

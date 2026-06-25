@@ -6,8 +6,11 @@ import tyro
 
 
 @dataclass(kw_only=True)
-class NormalizeRobotMdarRecordCommand:
+class NormalizeRobotMdarNpzCommand:
     recorded_motion_file: str = field(default=tyro.MISSING)
     normalized_motion_file: str = field(default=tyro.MISSING)
     device: str = "cuda:0"
     max_frames: int | None = None
+
+
+NormalizeRobotMdarRecordCommand = NormalizeRobotMdarNpzCommand

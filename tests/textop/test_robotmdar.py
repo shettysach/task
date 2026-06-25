@@ -9,7 +9,7 @@ from mjlab_textop.core.motion import (
     reindex_mjlab_g1_joints_to_textop,
     reindex_textop_g1_joints_to_mjlab,
 )
-from mjlab_textop.core.normalize_robotmdar_record import normalize_robotmdar_record_npz
+from mjlab_textop.core.normalize_robotmdar_npz import normalize_robotmdar_npz
 from mjlab_textop.core.online.source import TextOpMotionBlock
 from mjlab_textop.core.robotmdar import (
     ROBOTMDAR_G1_DOF_INDEX,
@@ -256,7 +256,7 @@ def test_robotmdar_record_preserves_textop_joint_order(tmp_path) -> None:
     np.testing.assert_allclose(record.joint_vel, textop_joint_pos + 100.0)
 
 
-def test_normalize_robotmdar_record_does_not_double_reindex_joints(
+def test_normalize_robotmdar_npz_does_not_double_reindex_joints(
     tmp_path, monkeypatch
 ) -> None:
     textop_joint_pos = np.arange(29, dtype=np.float32).reshape(1, 29)
@@ -280,7 +280,7 @@ def test_normalize_robotmdar_record_does_not_double_reindex_joints(
     )
     _patch_fake_mjlab_normalizer(monkeypatch)
 
-    normalize_robotmdar_record_npz(raw_file, normalized_file, device="cpu")
+    normalize_robotmdar_npz(raw_file, normalized_file, device="cpu")
 
     data = np.load(normalized_file)
     np.testing.assert_allclose(
@@ -313,7 +313,7 @@ def test_train_ready_robotmdar_npz_has_required_keys(tmp_path, monkeypatch) -> N
     )
     _patch_fake_mjlab_normalizer(monkeypatch)
 
-    normalize_robotmdar_record_npz(raw_file, normalized_file, device="cpu")
+    normalize_robotmdar_npz(raw_file, normalized_file, device="cpu")
 
     data = np.load(normalized_file)
     assert set(data.files) >= {
@@ -333,7 +333,7 @@ def test_train_ready_robotmdar_npz_has_required_keys(tmp_path, monkeypatch) -> N
 def _patch_fake_mjlab_normalizer(monkeypatch) -> None:
     import torch
 
-    import mjlab_textop.core.normalize_robotmdar_record as normalizer
+    import mjlab_textop.core.normalize_robotmdar_npz as normalizer
 
     class FakeRobot:
         def __init__(self) -> None:
