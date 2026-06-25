@@ -43,6 +43,11 @@ ROBOTMDAR_G1_DOF_NAMES: tuple[str, ...] = (
     "right_elbow_joint",
 )
 
+ROBOTMDAR_G1_DOF_LINK_NAMES: tuple[str, ...] = tuple(
+    "torso_link" if name == "waist_pitch_joint" else name.replace("_joint", "_link")
+    for name in ROBOTMDAR_G1_DOF_NAMES
+)
+
 ROBOTMDAR_DOF_COUNT = len(ROBOTMDAR_G1_DOF_NAMES)
 
 ROBOTMDAR_G1_DOF_INDEX: tuple[int, ...] = tuple(

@@ -25,7 +25,7 @@ TextOpOnlineSourceMode = Literal["replay", "live"]
 class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     resampling_time_range: tuple[float, float] = (1.0e9, 1.0e9)
     entity_name: str = "robot"
-    anchor_body_name: str
+    anchor_body_name: str = "pelvis"
     future_steps: int = TEXTOP_FUTURE_STEPS
     source: TextOpOnlineSource = field(default_factory=QueueTextOpOnlineSource)
     source_key: str | None = None
@@ -351,7 +351,7 @@ def use_online_textop_motion_command(
 ) -> None:
     motion_cfg = env_cfg.commands[command_name]
     entity_name = getattr(motion_cfg, "entity_name", "robot")
-    anchor_body_name = motion_cfg.anchor_body_name
+    anchor_body_name = getattr(motion_cfg, "anchor_body_name", "pelvis")
     source = source if source is not None else QueueTextOpOnlineSource()
 
     env_cfg.commands[command_name] = OnlineTextOpMotionCommandCfg(

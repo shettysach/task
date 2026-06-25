@@ -20,6 +20,7 @@ cu128 = ["mjlab", "torch>=2.7.0"]
 [project.scripts]
 mjlab-textop = "mjlab_textop.scripts.textop:main"
 mjlab-textop-robotmdar = "mjlab_textop.scripts.robotmdar_producer:main"
+mjlab-textop-robotmdar-record = "mjlab_textop.scripts.robotmdar_record:main"
 
 [project.entry-points."mjlab.tasks"]
 mjlab_textop = "mjlab_textop.core.task"

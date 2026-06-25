@@ -7,6 +7,8 @@ The integration supports three paths:
 
 - offline tracking: convert a canonical TextOp tracker NPZ into MJLab's native
   tracking NPZ format, then train/play/evaluate a TextOp-style MJLab task.
+- RobotMDAR dataset generation: generate a raw RobotMDAR reference record
+  without MJLab live play, then normalize it into a train-ready MJLab NPZ.
 - online replay: stream a normalized MJLab motion file through the same online
   reference buffer used by live sources.
 - live text-to-motion demo: run RobotMDAR in a separate TextOp environment and
@@ -28,6 +30,13 @@ RobotMDAR text prompt
   -> mjlab-textop play-live
   -> OnlineTextOpMotionCommand
   -> TextOp-style future reference observations
+
+RobotMDAR text prompt
+  -> mjlab_textop.scripts.robotmdar_record
+  -> raw RobotMDAR reference NPZ
+  -> mjlab-textop normalize-robotmdar-record
+  -> MJLab-native train-ready motion.npz
+  -> Mjlab-TextOp-Flat-Unitree-G1
 ```
 
 The reusable TextOp integration code lives under `src/mjlab_textop/core/`.
@@ -72,6 +81,45 @@ uv run --extra cu128 mjlab-textop normalize \
 The normalizer expects TextOp's canonical tracker NPZ fields. It reorders
 TextOp IsaacLab G1 joints into MJLab/MuJoCo order and replays root plus joints
 through MJLab so body references are written in MJLab's own body order.
+
+Offline TextOp tracking uses `torso_link` as the configured anchor body. Online
+streaming uses `pelvis`, matching the root/anchor term carried by live
+`TextOpMotionBlock` messages.
+
+### `robotmdar-record`
+
+Generate a raw RobotMDAR reference record without starting an MJLab socket
+consumer. Run this in the TextOp/RobotMDAR Python environment with this package
+on `PYTHONPATH`:
+
+```bash
+uv run python -m mjlab_textop.scripts.robotmdar_record \
+  --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
+  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
+  --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
+  --prompt "walk forward" \
+  --num-blocks 200 \
+  --output ./outputs/robotmdar_walk_raw.npz
+```
+
+The raw record stores `joint_pos`, `joint_vel`, `anchor_pos_w`, and
+`anchor_quat_w`. Joint arrays remain in TextOp/IsaacLab G1 order.
+
+### `normalize-robotmdar-record`
+
+Convert a raw RobotMDAR record into the full MJLab train-ready NPZ. Run this in
+the MJLab environment:
+
+```bash
+uv run --extra cu128 mjlab-textop normalize-robotmdar-record \
+  --recorded-motion-file ./outputs/robotmdar_walk_raw.npz \
+  --normalized-motion-file ./outputs/robotmdar_walk_train_ready.npz
+```
+
+This command reindexes RobotMDAR raw joints from TextOp/IsaacLab order into
+MJLab order exactly once, uses the raw anchor trajectory as the robot root, runs
+MJLab forward kinematics, and saves full MJLab body position, orientation, and
+velocity arrays.
 
 ### `train`
 

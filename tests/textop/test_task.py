@@ -34,7 +34,7 @@ def test_textop_task_uses_textop_motion_command() -> None:
 
     assert isinstance(motion_cmd, TextOpMotionCommandCfg)
     assert motion_cmd.future_steps == TEXTOP_FUTURE_STEPS
-    assert motion_cmd.anchor_body_name == "pelvis"
+    assert motion_cmd.anchor_body_name == "torso_link"
 
 
 def test_online_textop_task_uses_online_motion_command() -> None:

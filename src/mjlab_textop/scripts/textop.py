@@ -6,8 +6,12 @@ from typing import TypeAlias
 import tyro
 
 from mjlab_textop.core.normalize import normalize_textop_npz
+from mjlab_textop.core.normalize_robotmdar_record import normalize_robotmdar_record_npz
 from mjlab_textop.scripts.eval import EvalCommand, evaluate_textop_motion
 from mjlab_textop.scripts.normalize import NormalizeCommand
+from mjlab_textop.scripts.normalize_robotmdar_record import (
+    NormalizeRobotMdarRecordCommand,
+)
 from mjlab_textop.scripts.play_live import PlayLiveCommand, play_live_textop_motion
 from mjlab_textop.scripts.play_online import (
     PlayOnlineCommand,
@@ -16,6 +20,7 @@ from mjlab_textop.scripts.play_online import (
 
 TextOpCommand: TypeAlias = (
     NormalizeCommand
+    | NormalizeRobotMdarRecordCommand
     | PlayOnlineCommand
     | PlayLiveCommand
     | EvalCommand
@@ -24,6 +29,7 @@ TextOpCommand: TypeAlias = (
 TextOpCommandType = tyro.extras.subcommand_type_from_defaults(
     {
         "normalize": NormalizeCommand(),
+        "normalize-robotmdar-record": NormalizeRobotMdarRecordCommand(),
         "play-online": PlayOnlineCommand(),
         "play-live": PlayLiveCommand(),
         "eval": EvalCommand(),
@@ -53,6 +59,17 @@ def run_textop_motion(cfg: TextOpCommand) -> None:
             input_file = verify_path(cfg.motion_file, "TextOp motion file")
             output_file = resolve_path(cfg.normalized_motion_file)
             normalize_textop_npz(input_file, output_file, device=cfg.device)
+            return
+
+        case NormalizeRobotMdarRecordCommand():
+            input_file = verify_path(cfg.recorded_motion_file, "RobotMDAR raw record")
+            output_file = resolve_path(cfg.normalized_motion_file)
+            normalize_robotmdar_record_npz(
+                input_file,
+                output_file,
+                device=cfg.device,
+                max_frames=cfg.max_frames,
+            )
             return
 
         case PlayOnlineCommand():

@@ -9,6 +9,7 @@ from mjlab_textop.core.motion import (
     reindex_mjlab_g1_joints_to_textop,
     reindex_textop_g1_joints_to_mjlab,
 )
+from mjlab_textop.core.normalize_robotmdar_record import normalize_robotmdar_record_npz
 from mjlab_textop.core.online.source import TextOpMotionBlock
 from mjlab_textop.core.robotmdar import (
     ROBOTMDAR_G1_DOF_INDEX,
@@ -18,6 +19,10 @@ from mjlab_textop.core.robotmdar import (
     robotmdar_motion_dict_to_block,
     save_textop_motion_blocks_as_mjlab_npz,
     slice_motion_dict_tail,
+)
+from mjlab_textop.core.robotmdar_record import (
+    load_robotmdar_raw_record,
+    save_robotmdar_raw_record,
 )
 
 
@@ -171,3 +176,234 @@ def test_save_textop_motion_blocks_as_mjlab_npz_records_replay_motion(tmp_path) 
     )
     np.testing.assert_allclose(motion.body_pos_w[:, 0, :], anchor_pos_w)
     np.testing.assert_allclose(motion.body_quat_w[:, 0, :], anchor_quat_w)
+
+
+def test_robotmdar_record_saves_raw_reference_terms(tmp_path) -> None:
+    textop_joint_pos = np.arange(3 * 29, dtype=np.float32).reshape(3, 29)
+    textop_joint_vel = textop_joint_pos + 1000.0
+    anchor_pos_w = np.arange(3 * 3, dtype=np.float32).reshape(3, 3)
+    anchor_quat_w = np.tile(
+        np.array([2.0, 0.0, 0.0, 0.0], dtype=np.float32),
+        (3, 1),
+    )
+    output_file = tmp_path / "robotmdar_raw.npz"
+
+    save_robotmdar_raw_record(
+        output_file,
+        [
+            TextOpMotionBlock(
+                index=0,
+                joint_pos=textop_joint_pos,
+                joint_vel=textop_joint_vel,
+                anchor_pos_w=anchor_pos_w,
+                anchor_quat_w=anchor_quat_w,
+            )
+        ],
+        fps=50.0,
+        prompt="walk forward",
+        guidance_scale=5.0,
+    )
+
+    data = np.load(output_file)
+    assert set(data.files) >= {
+        "fps",
+        "joint_pos",
+        "joint_vel",
+        "anchor_pos_w",
+        "anchor_quat_w",
+        "frame_index",
+        "prompt",
+        "guidance_scale",
+        "num_blocks",
+        "source",
+    }
+    np.testing.assert_allclose(data["joint_pos"], textop_joint_pos)
+    np.testing.assert_allclose(data["joint_vel"], textop_joint_vel)
+    np.testing.assert_allclose(data["anchor_pos_w"], anchor_pos_w)
+    np.testing.assert_allclose(
+        data["anchor_quat_w"],
+        np.tile(np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32), (3, 1)),
+    )
+    np.testing.assert_array_equal(data["frame_index"], np.arange(3))
+    assert str(data["prompt"]) == "walk forward"
+    assert str(data["source"]) == "robotmdar"
+    assert int(data["num_blocks"][0]) == 1
+
+
+def test_robotmdar_record_preserves_textop_joint_order(tmp_path) -> None:
+    textop_joint_pos = np.arange(29, dtype=np.float32).reshape(1, 29)
+    output_file = tmp_path / "robotmdar_raw.npz"
+
+    save_robotmdar_raw_record(
+        output_file,
+        [
+            TextOpMotionBlock(
+                index=0,
+                joint_pos=textop_joint_pos,
+                joint_vel=textop_joint_pos + 100.0,
+                anchor_pos_w=np.zeros((1, 3), dtype=np.float32),
+                anchor_quat_w=np.array([[1.0, 0.0, 0.0, 0.0]], dtype=np.float32),
+            )
+        ],
+        fps=50.0,
+        prompt="stand",
+        guidance_scale=5.0,
+    )
+
+    record = load_robotmdar_raw_record(output_file)
+
+    np.testing.assert_allclose(record.joint_pos, textop_joint_pos)
+    np.testing.assert_allclose(record.joint_vel, textop_joint_pos + 100.0)
+
+
+def test_normalize_robotmdar_record_does_not_double_reindex_joints(
+    tmp_path, monkeypatch
+) -> None:
+    textop_joint_pos = np.arange(29, dtype=np.float32).reshape(1, 29)
+    textop_joint_vel = textop_joint_pos + 100.0
+    raw_file = tmp_path / "robotmdar_raw.npz"
+    normalized_file = tmp_path / "robotmdar_train_ready.npz"
+    save_robotmdar_raw_record(
+        raw_file,
+        [
+            TextOpMotionBlock(
+                index=0,
+                joint_pos=textop_joint_pos,
+                joint_vel=textop_joint_vel,
+                anchor_pos_w=np.array([[0.0, 0.0, 1.0]], dtype=np.float32),
+                anchor_quat_w=np.array([[1.0, 0.0, 0.0, 0.0]], dtype=np.float32),
+            )
+        ],
+        fps=50.0,
+        prompt="stand",
+        guidance_scale=5.0,
+    )
+    _patch_fake_mjlab_normalizer(monkeypatch)
+
+    normalize_robotmdar_record_npz(raw_file, normalized_file, device="cpu")
+
+    data = np.load(normalized_file)
+    np.testing.assert_allclose(
+        data["joint_pos"], reindex_textop_g1_joints_to_mjlab(textop_joint_pos)
+    )
+    np.testing.assert_allclose(
+        data["joint_vel"], reindex_textop_g1_joints_to_mjlab(textop_joint_vel)
+    )
+
+
+def test_train_ready_robotmdar_npz_has_required_keys(tmp_path, monkeypatch) -> None:
+    raw_file = tmp_path / "robotmdar_raw.npz"
+    normalized_file = tmp_path / "robotmdar_train_ready.npz"
+    save_robotmdar_raw_record(
+        raw_file,
+        [
+            TextOpMotionBlock(
+                index=0,
+                joint_pos=np.zeros((2, 29), dtype=np.float32),
+                joint_vel=np.zeros((2, 29), dtype=np.float32),
+                anchor_pos_w=np.zeros((2, 3), dtype=np.float32),
+                anchor_quat_w=np.tile(
+                    np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32), (2, 1)
+                ),
+            )
+        ],
+        fps=50.0,
+        prompt="stand",
+        guidance_scale=5.0,
+    )
+    _patch_fake_mjlab_normalizer(monkeypatch)
+
+    normalize_robotmdar_record_npz(raw_file, normalized_file, device="cpu")
+
+    data = np.load(normalized_file)
+    assert set(data.files) >= {
+        "fps",
+        "joint_pos",
+        "joint_vel",
+        "body_pos_w",
+        "body_quat_w",
+        "body_lin_vel_w",
+        "body_ang_vel_w",
+    }
+    assert data["joint_pos"].shape == (2, 29)
+    assert data["body_pos_w"].shape == (2, 2, 3)
+    assert data["body_quat_w"].shape == (2, 2, 4)
+
+
+def _patch_fake_mjlab_normalizer(monkeypatch) -> None:
+    import torch
+
+    import mjlab_textop.core.normalize_robotmdar_record as normalizer
+
+    class FakeRobot:
+        def __init__(self) -> None:
+            self.data = type("Data", (), {})()
+            self.data.default_root_state = torch.zeros((1, 13), dtype=torch.float32)
+            self.data.default_joint_pos = torch.zeros((1, 29), dtype=torch.float32)
+            self.data.default_joint_vel = torch.zeros((1, 29), dtype=torch.float32)
+            self.data.joint_pos = torch.zeros((1, 29), dtype=torch.float32)
+            self.data.joint_vel = torch.zeros((1, 29), dtype=torch.float32)
+            self.data.body_link_pos_w = torch.zeros((1, 2, 3), dtype=torch.float32)
+            self.data.body_link_quat_w = torch.tensor(
+                [[[1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]]],
+                dtype=torch.float32,
+            )
+            self.data.body_link_lin_vel_w = torch.zeros((1, 2, 3), dtype=torch.float32)
+            self.data.body_link_ang_vel_w = torch.zeros((1, 2, 3), dtype=torch.float32)
+
+        def find_joints(self, names, preserve_order):
+            assert names == MJLAB_G1_JOINT_NAMES
+            assert preserve_order
+            return [list(range(29))]
+
+        def write_root_state_to_sim(self, root_states):
+            self.data.body_link_pos_w[:, 0, :] = root_states[:, 0:3]
+            self.data.body_link_quat_w[:, 0, :] = root_states[:, 3:7]
+            self.data.body_link_lin_vel_w[:, 0, :] = root_states[:, 7:10]
+            self.data.body_link_ang_vel_w[:, 0, :] = root_states[:, 10:13]
+
+        def write_joint_state_to_sim(self, joint_pos, joint_vel):
+            self.data.joint_pos = joint_pos.clone()
+            self.data.joint_vel = joint_vel.clone()
+
+    class FakeScene:
+        robot = FakeRobot()
+
+        def __init__(self, scene_cfg, device):
+            self.scene_cfg = scene_cfg
+            self.device = device
+
+        def compile(self):
+            return object()
+
+        def initialize(self, mj_model, model, data):
+            return None
+
+        def reset(self):
+            return None
+
+        def update(self, dt):
+            return None
+
+        def __getitem__(self, key):
+            assert key == "robot"
+            return self.robot
+
+    class FakeSimulation:
+        def __init__(self, num_envs, cfg, model, device):
+            self.device = device
+            self.mj_model = type("MjModel", (), {"opt": type("Opt", (), {})()})()
+            self.mj_model.opt.timestep = cfg.mujoco.timestep
+            self.model = object()
+            self.data = object()
+
+        def forward(self):
+            return None
+
+    monkeypatch.setattr(
+        normalizer,
+        "unitree_g1_flat_tracking_env_cfg",
+        lambda: type("Cfg", (), {"scene": object()})(),
+    )
+    monkeypatch.setattr(normalizer, "Scene", FakeScene)
+    monkeypatch.setattr(normalizer, "Simulation", FakeSimulation)
