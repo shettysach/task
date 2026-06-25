@@ -25,7 +25,7 @@ TextOpOnlineSourceMode = Literal["replay", "live"]
 class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     resampling_time_range: tuple[float, float] = (1.0e9, 1.0e9)
     entity_name: str = "robot"
-    anchor_body_name: str = "pelvis"
+    anchor_body_name: str
     future_steps: int = TEXTOP_FUTURE_STEPS
     source: TextOpOnlineSource = field(default_factory=QueueTextOpOnlineSource)
     source_key: str | None = None
@@ -108,9 +108,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self.metrics["online_lag_frames"] = torch.zeros(
             self.num_envs, device=self.device
         )
-        self.metrics["online_started"] = torch.zeros(
-            self.num_envs, device=self.device
-        )
+        self.metrics["online_started"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["online_queue_depth"] = torch.zeros(
             self.num_envs, device=self.device
         )
@@ -316,11 +314,11 @@ class OnlineTextOpMotionCommand(CommandTerm):
         joint_pos = torch.clip(joint_pos, soft_limits[:, :, 0], soft_limits[:, :, 1])
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
-        root_pos = (anchor_pos_w[0] + self._anchor_pos_offset_w).repeat(
-            len(env_ids), 1
-        )
+        root_pos = (anchor_pos_w[0] + self._anchor_pos_offset_w).repeat(len(env_ids), 1)
         root_quat = anchor_quat_w[0].repeat(len(env_ids), 1)
-        root_vel = torch.zeros(len(env_ids), 6, device=self.device, dtype=root_pos.dtype)
+        root_vel = torch.zeros(
+            len(env_ids), 6, device=self.device, dtype=root_pos.dtype
+        )
         root_state = torch.cat([root_pos, root_quat, root_vel], dim=-1)
         self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)
         self.robot.reset(env_ids=env_ids)
@@ -353,7 +351,7 @@ def use_online_textop_motion_command(
 ) -> None:
     motion_cfg = env_cfg.commands[command_name]
     entity_name = getattr(motion_cfg, "entity_name", "robot")
-    anchor_body_name = getattr(motion_cfg, "anchor_body_name", "pelvis")
+    anchor_body_name = motion_cfg.anchor_body_name
     source = source if source is not None else QueueTextOpOnlineSource()
 
     env_cfg.commands[command_name] = OnlineTextOpMotionCommandCfg(

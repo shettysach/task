@@ -40,7 +40,7 @@ def make_textop_g1_flat_tracking_env_cfg(
         command_name="motion",
         future_steps=future_steps,
     )
-    _configure_textop_anchor(cfg)
+    cfg.commands["motion"].anchor_body_name = "torso_link"
     _configure_textop_actor_observations(cfg)
     _configure_textop_critic_observations(cfg)
 
@@ -73,7 +73,7 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
     )
-    _configure_textop_anchor(cfg)
+    cfg.commands["motion"].anchor_body_name = "pelvis"
     _configure_textop_actor_observations(cfg)
     _configure_textop_critic_observations(cfg)
     _configure_online_textop_tracking_terms(cfg)
@@ -138,13 +138,6 @@ def register_online_textop_replay_task(
         max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
     )
-
-
-# Match the current offline TextOp tracker convention - pelvis
-# but note, MJLab's base G1 tracking task uses torso_link
-def _configure_textop_anchor(cfg) -> None:
-    motion_cmd = cfg.commands["motion"]
-    motion_cmd.anchor_body_name = "torso_link"
 
 
 def _configure_textop_actor_observations(cfg) -> None:
