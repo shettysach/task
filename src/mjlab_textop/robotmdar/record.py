@@ -10,7 +10,7 @@ from mjlab_textop.core.robotmdar import (
     slice_motion_dict_tail,
 )
 from mjlab_textop.core.robotmdar_record import save_robotmdar_raw_record
-from mjlab_textop.scripts.robotmdar_producer import (
+from mjlab_textop.robotmdar.produce import (
     _load_robotmdar_runtime,
     _register_hydra_resolvers,
 )

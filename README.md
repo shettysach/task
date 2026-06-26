@@ -53,7 +53,7 @@ uvx hf download Yochish/TextOp-Data \
 
 ```bash
 # In TextOp directory
-uv run python -m mjlab_textop.scripts.robotmdar_record \
+uv run python -m mjlab_textop.robotmdar.record \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
@@ -167,7 +167,7 @@ Setup - [TextOpRobotMDAR Setup](#textoprobotmdar-setup)
 
 ```bash
 # In TextOp directory
-uv run python -m mjlab_textop.scripts.robotmdar_producer \
+uv run python -m mjlab_textop.robotmdar.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1
