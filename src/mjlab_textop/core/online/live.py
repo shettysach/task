@@ -114,6 +114,7 @@ class SocketTextOpOnlineSource:
         self.fps = cfg.fps
         self.diagnostics = TextOpLiveDiagnostics()
         self._queue: deque[TextOpMotionBlock] = deque()
+        self._recorded_blocks: list[TextOpMotionBlock] = []
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -155,6 +156,10 @@ class SocketTextOpOnlineSource:
         self.fps = fps
         self._append_block(block)
 
+    def recorded_blocks(self) -> list[TextOpMotionBlock]:
+        with self._lock:
+            return list(self._recorded_blocks)
+
     def _reader_loop(self) -> None:
         try:
             with socket.create_connection((self.cfg.host, self.cfg.port)) as sock:
@@ -185,6 +190,7 @@ class SocketTextOpOnlineSource:
                 self._queue.popleft()
                 self.diagnostics.blocks_dropped += 1
             self._queue.append(block)
+            self._recorded_blocks.append(block)
             self.diagnostics.blocks_received += 1
             self._sync_queue_depth_locked()
 

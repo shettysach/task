@@ -64,6 +64,7 @@ def test_socket_source_queues_and_drops_oldest_blocks() -> None:
     assert block.index == 8
     assert source.diagnostics.blocks_polled == 1
     assert source.diagnostics.queue_depth == 0
+    assert [block.index for block in source.recorded_blocks()] == [0, 8]
 
 
 def test_socket_source_records_bad_messages() -> None:

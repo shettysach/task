@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -37,6 +38,7 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     max_buffer_frames: int | None = 512
     clear_buffer_on_reset: bool = True
     reset_robot_to_reference: bool = True
+    log_metrics_every_steps: int = 0
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     )
@@ -46,6 +48,11 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
             raise ValueError(f"future_steps must be positive, got {self.future_steps}")
         if self.source_mode not in ("replay", "live"):
             raise ValueError(f"Unknown source_mode: {self.source_mode}")
+        if self.log_metrics_every_steps < 0:
+            raise ValueError(
+                "log_metrics_every_steps must be non-negative, got "
+                f"{self.log_metrics_every_steps}"
+            )
         if self.source_mode == "replay" and not isinstance(
             self.source,
             ResettableTextOpOnlineSource,
@@ -90,6 +97,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._total_clamped_steps = 0
         self._clamped_window_count = 0
         self._last_stale_frame: int | None = None
+        self._metrics_update_count = 0
         self._anchor_pos_offset_w = torch.zeros(3, device=self.device)
 
         self.metrics["online_buffer_frames"] = torch.zeros(
@@ -239,6 +247,27 @@ class OnlineTextOpMotionCommand(CommandTerm):
             self.metrics["online_bad_messages"][:] = float(
                 getattr(diagnostics, "bad_messages", 0)
             )
+        self._metrics_update_count += 1
+        self._log_online_metrics()
+
+    def _log_online_metrics(self) -> None:
+        every_steps = self.cfg.log_metrics_every_steps
+        if every_steps <= 0 or self._metrics_update_count % every_steps != 0:
+            return
+        print(
+            "play-live metrics "
+            f"step={self._metrics_update_count} "
+            f"current_frame={self.metrics['online_current_frame'][0].item():.0f} "
+            f"latest_buffered_frame="
+            f"{self.metrics['online_latest_buffered_frame'][0].item():.0f} "
+            f"online_lag_frames={self.metrics['online_lag_frames'][0].item():.0f} "
+            f"online_consecutive_clamped_steps="
+            f"{self.metrics['online_consecutive_clamped_steps'][0].item():.0f} "
+            f"online_clamped_window_count="
+            f"{self.metrics['online_clamped_window_count'][0].item():.0f}",
+            file=sys.stderr,
+            flush=True,
+        )
 
     def _resample_command(self, env_ids: torch.Tensor) -> None:
         if len(env_ids) == 0:
@@ -396,6 +425,7 @@ def use_online_textop_motion_command(
     ),
     max_stale_steps: int = 25,
     reset_robot_to_reference: bool = True,
+    log_metrics_every_steps: int = 0,
 ) -> None:
     motion_cfg = env_cfg.commands[command_name]
     entity_name = getattr(motion_cfg, "entity_name", "robot")
@@ -412,4 +442,5 @@ def use_online_textop_motion_command(
         anchor_alignment=anchor_alignment,
         max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
+        log_metrics_every_steps=log_metrics_every_steps,
     )

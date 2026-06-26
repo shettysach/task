@@ -137,10 +137,15 @@ def test_online_textop_replay_task_can_disable_reference_reset() -> None:
 def test_online_textop_live_task_uses_live_source_mode() -> None:
     source = QueueTextOpOnlineSource([], fps=50.0)
 
-    task_name = register_online_textop_task(source=source, source_mode="live")
+    task_name = register_online_textop_task(
+        source=source,
+        source_mode="live",
+        log_metrics_every_steps=17,
+    )
     env_cfg = load_env_cfg(task_name, play=True)
 
     assert env_cfg.commands["motion"].source_mode == "live"
+    assert env_cfg.commands["motion"].log_metrics_every_steps == 17
 
 
 def test_online_textop_task_removes_full_body_tracking_terms() -> None:
