@@ -128,6 +128,18 @@ uv run --extra cu128 mjlab-textop play-online \
   --motion-file ./outputs/walk_forward.npz
 ```
 
+#### `play-online-onnx`
+
+Replay the normalized motion through TextOp's released `latest.onnx` policy:
+
+```bash
+uv run --extra cu128 mjlab-textop play-online-onnx \
+  --policy-file /tmp/latest.onnx \
+  --motion-file ./outputs/walk_forward.npz
+```
+
+This path uses the ONNX actor directly and does not load an RSL-RL checkpoint.
+
 #### `play-live`
 
 Run a live text-to-motion demo over localhost NDJSON. 
@@ -156,3 +168,18 @@ uv run --extra cu128 mjlab-textop play-live \
 The live producer sends 50 Hz-indexed motion chunks. MJLab consumes them at the
 online command rate, clamps stale future frames during underruns, and reports
 online buffer/source diagnostics through command metrics.
+
+#### `play-live-onnx`
+
+Run the live RobotMDAR-to-TextOp stream against TextOp's released `latest.onnx`
+policy:
+
+```bash
+uv run --extra cu128 mjlab-textop play-live-onnx \
+  --policy-file /tmp/latest.onnx \
+  --host 127.0.0.1 \
+  --port 8765
+```
+
+This path uses the live online source and the ONNX actor directly, without a
+`.pt` checkpoint.

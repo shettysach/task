@@ -50,6 +50,17 @@ def test_textop_onnx_policy_reindexes_action_to_mjlab_order(
     assert policy.session.received.shape == (2, 431)
 
 
+def test_textop_onnx_policy_accepts_actor_observation_dict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_onnxruntime(monkeypatch)
+    policy = TextOpOnnxPolicy(Path("latest.onnx"))
+
+    action = policy({"actor": torch.zeros(1, 431)})
+
+    assert action.shape == (1, 29)
+
+
 def test_textop_onnx_policy_rejects_unbatched_obs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import torch
@@ -21,7 +22,8 @@ class TextOpOnnxPolicy:
             dtype=torch.long,
         )
 
-    def __call__(self, obs: torch.Tensor) -> torch.Tensor:
+    def __call__(self, obs: torch.Tensor | Any) -> torch.Tensor:
+        obs = _actor_obs(obs)
         if obs.ndim != 2:
             raise RuntimeError(
                 f"Expected batched ONNX obs shaped [N, 431], got {obs.shape}"
@@ -45,3 +47,22 @@ class TextOpOnnxPolicy:
             raise RuntimeError(f"Expected ONNX action dim 29, got {action_mjlab.shape[-1]}")
 
         return action_mjlab
+
+
+def _actor_obs(obs: torch.Tensor | Any) -> torch.Tensor:
+    if isinstance(obs, torch.Tensor):
+        return obs
+
+    try:
+        actor_obs = obs["actor"]
+    except (KeyError, TypeError):
+        raise RuntimeError(
+            "Expected ONNX observation to be a tensor or contain an 'actor' tensor"
+        ) from None
+
+    if not isinstance(actor_obs, torch.Tensor):
+        raise RuntimeError(
+            f"Expected ONNX actor observation to be a tensor, got "
+            f"{type(actor_obs).__name__}"
+        )
+    return actor_obs
