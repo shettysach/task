@@ -95,6 +95,18 @@ def test_rolling_buffer_finds_earliest_contiguous_start_window() -> None:
     assert buffer.earliest_start_frame(5) == 100
 
 
+def test_rolling_buffer_finds_latest_contiguous_start_window() -> None:
+    buffer = TextOpRollingMotionBuffer()
+    buffer.append_block(motion_block(index=100, frames=8))
+    buffer.append_block(motion_block(index=200, frames=3))
+
+    assert buffer.latest_start_frame(5) == 103
+
+    buffer.append_block(motion_block(index=203, frames=5))
+
+    assert buffer.latest_start_frame(5) == 203
+
+
 def test_rolling_buffer_repeats_latest_available_frame_on_underrun() -> None:
     buffer = TextOpRollingMotionBuffer()
     block = motion_block(index=0, frames=5)
@@ -235,6 +247,7 @@ def test_online_command_clamps_too_many_consecutive_stale_windows() -> None:
     command = OnlineTextOpMotionCommand(
         OnlineTextOpMotionCommandCfg(
             source=source,
+            source_mode="replay",
             future_steps=5,
             max_stale_steps=1,
         ),
@@ -415,6 +428,7 @@ def test_online_command_replay_reset_rewinds_source() -> None:
 
 def test_online_command_live_reset_does_not_rewind_source() -> None:
     source = _LiveTextOpOnlineSource([motion_block(frames=8)])
+    env = fake_env()
     command = OnlineTextOpMotionCommand(
         OnlineTextOpMotionCommandCfg(
             source=source,
@@ -422,7 +436,7 @@ def test_online_command_live_reset_does_not_rewind_source() -> None:
             future_steps=5,
             startup_timeout_steps=1,
         ),
-        fake_env(),
+        env,
     )
     command._update_command()
 
@@ -430,10 +444,16 @@ def test_online_command_live_reset_does_not_rewind_source() -> None:
 
     command._resample_command(torch.tensor([0]))
 
-    assert command.buffer.frame_count == 0
-    command._update_command()
-    with pytest.raises(RuntimeError, match="did not receive enough contiguous"):
-        command._update_command()
+    assert command.buffer.frame_count == 8
+    assert command.current_frame == 3
+    assert command._started is True
+    assert command.future_joint_pos.shape == (1, 5, 29)
+    robot = env.scene["robot"]
+    torch.testing.assert_close(
+        robot.written_joint_pos,
+        command.future_joint_pos[:, 0],
+    )
+    torch.testing.assert_close(robot.reset_env_ids, torch.tensor([0]))
 
 
 def test_online_command_live_attaches_to_earliest_full_future_window() -> None:
@@ -490,7 +510,60 @@ def test_online_command_live_reset_attaches_to_next_full_future_window() -> None
     )
     command._update_command()
 
+    source.blocks.extend(
+        [
+            motion_block(index=100, frames=3),
+            motion_block(index=103, frames=5),
+        ]
+    )
     command._resample_command(torch.tensor([0]))
+
+    assert command._started is True
+    assert command.current_frame == 103
+    assert command._last_stale_steps == 0
+
+
+def test_online_command_live_pauses_before_advancing_into_stale_window() -> None:
+    source = _LiveTextOpOnlineSource([motion_block(index=0, frames=8)])
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(
+            source=source,
+            source_mode="live",
+            future_steps=5,
+        ),
+        fake_env(),
+    )
+    command._update_command()
+
+    for _ in range(4):
+        command._update_command()
+
+    assert command.current_frame == 3
+    assert command.buffer.latest_index == 7
+    assert command.future_joint_pos.shape == (1, 5, 29)
+    assert command._last_stale_steps == 0
+
+    source.blocks.append(motion_block(index=8, frames=1))
+    command._update_command()
+
+    assert command.current_frame == 4
+
+
+def test_online_command_live_resyncs_when_stream_jumps_ahead() -> None:
+    source = _LiveTextOpOnlineSource([motion_block(index=0, frames=8)])
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(
+            source=source,
+            source_mode="live",
+            future_steps=5,
+        ),
+        fake_env(),
+    )
+    command._update_command()
+
+    for _ in range(3):
+        command._update_command()
+
     source.blocks.extend(
         [
             motion_block(index=100, frames=3),
@@ -499,8 +572,8 @@ def test_online_command_live_reset_attaches_to_next_full_future_window() -> None
     )
     command._update_command()
 
-    assert command._started is True
-    assert command.current_frame == 100
+    assert command.current_frame == 103
+    assert command.future_joint_pos.shape == (1, 5, 29)
     assert command._last_stale_steps == 0
 
 

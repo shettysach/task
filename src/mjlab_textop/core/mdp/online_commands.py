@@ -272,12 +272,13 @@ class OnlineTextOpMotionCommand(CommandTerm):
     def _resample_command(self, env_ids: torch.Tensor) -> None:
         if len(env_ids) == 0:
             return
-        if self.cfg.clear_buffer_on_reset:
+        if self.cfg.source_mode == "replay" and self.cfg.clear_buffer_on_reset:
             self.buffer.clear()
-            if self.cfg.source_mode == "replay":
-                assert isinstance(self.cfg.source, ResettableTextOpOnlineSource)
-                self.cfg.source.reset()
-                self._poll_source()
+            assert isinstance(self.cfg.source, ResettableTextOpOnlineSource)
+            self.cfg.source.reset()
+            self._poll_source()
+        elif self.cfg.source_mode == "live":
+            self._poll_source()
         self.current_frame = int(self.cfg.start_frame)
         self._started = False
         self._startup_wait_steps = 0
@@ -287,10 +288,20 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._clamped_window_count = 0
         self._last_stale_frame = None
         self._anchor_pos_offset_w.zero_()
-        if self.cfg.source_mode == "replay" and self.buffer.can_start(
-            self.current_frame,
-            self.cfg.future_steps,
-        ):
+        if self.cfg.source_mode == "live":
+            live_start_frame = self._latest_live_start_frame()
+            if live_start_frame is None:
+                self._log_live_resample("waiting")
+                return
+            self.current_frame = live_start_frame
+            self._align_reference_anchor()
+            if self.cfg.reset_robot_to_reference:
+                self._reset_robot_to_reference(env_ids)
+            self._started = True
+            self._log_live_resample("resynced")
+            return
+
+        if self.buffer.can_start(self.current_frame, self.cfg.future_steps):
             if self.cfg.reset_robot_to_reference:
                 self._reset_robot_to_reference(env_ids)
             self._started = True
@@ -320,6 +331,8 @@ class OnlineTextOpMotionCommand(CommandTerm):
         # V1 assumes one MJLab command update corresponds to one TextOp source
         # frame. RobotMDAR/TextOpDeploy commonly runs at 50 Hz; add explicit
         # source-FPS resampling before using streams at a different control rate.
+        if self.cfg.source_mode == "live" and not self._can_advance_live_frame():
+            return
         self.current_frame += 1
 
     def _poll_source(self) -> None:
@@ -335,6 +348,44 @@ class OnlineTextOpMotionCommand(CommandTerm):
         if self.buffer.can_start(self.current_frame, self.cfg.future_steps):
             return self.current_frame
         return None
+
+    def _latest_live_start_frame(self) -> int | None:
+        return self.buffer.latest_start_frame(self.cfg.future_steps)
+
+    def _can_advance_live_frame(self) -> bool:
+        latest_index = self.buffer.latest_index
+        latest_start_frame = self._latest_live_start_frame()
+        if latest_index is None or latest_start_frame is None:
+            return False
+
+        if not self.buffer.can_start(self.current_frame, self.cfg.future_steps):
+            if latest_start_frame > self.current_frame:
+                self.current_frame = latest_start_frame
+                self._align_reference_anchor()
+            return False
+
+        next_frame = self.current_frame + 1
+        if self.buffer.can_start(next_frame, self.cfg.future_steps):
+            return True
+        if latest_start_frame > self.current_frame:
+            self.current_frame = latest_start_frame
+            self._align_reference_anchor()
+        return False
+
+    def _log_live_resample(self, status: str) -> None:
+        if self.cfg.log_metrics_every_steps <= 0:
+            return
+        latest_index = self.buffer.latest_index
+        latest_buffered_frame = -1 if latest_index is None else latest_index
+        print(
+            "play-live reset "
+            f"status={status} "
+            f"current_frame={self.current_frame} "
+            f"latest_buffered_frame={latest_buffered_frame} "
+            f"buffer_frames={self.buffer.frame_count}",
+            file=sys.stderr,
+            flush=True,
+        )
 
     def _future(
         self,
