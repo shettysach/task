@@ -13,6 +13,7 @@ from mjlab_textop.core.mdp.offline_commands import (
     textop_motion_command_cfg_from,
     use_textop_motion_command,
 )
+from mjlab_textop.scripts.policy import resolve_policy
 
 
 def test_make_future_time_steps_clamps_at_end() -> None:
@@ -29,6 +30,50 @@ def test_make_future_time_steps_clamps_at_end() -> None:
         [7, 8, 9, 9, 9],
         [9, 9, 9, 9, 9],
     ]
+
+
+def test_resolve_policy_accepts_checkpoint_file(tmp_path) -> None:
+    checkpoint_file = tmp_path / "model.pt"
+    checkpoint_file.write_text("checkpoint")
+
+    policy = resolve_policy(
+        checkpoint_file=str(checkpoint_file),
+        onnx_file=None,
+    )
+
+    assert policy.kind == "checkpoint"
+    assert policy.file == checkpoint_file.resolve()
+
+
+def test_resolve_policy_accepts_onnx_file(tmp_path) -> None:
+    onnx_file = tmp_path / "latest.onnx"
+    onnx_file.write_text("onnx")
+
+    policy = resolve_policy(
+        checkpoint_file=None,
+        onnx_file=str(onnx_file),
+    )
+
+    assert policy.kind == "onnx"
+    assert policy.file == onnx_file.resolve()
+
+
+def test_resolve_policy_rejects_missing_policy() -> None:
+    with pytest.raises(ValueError, match="exactly one"):
+        resolve_policy(checkpoint_file=None, onnx_file=None)
+
+
+def test_resolve_policy_rejects_multiple_policies(tmp_path) -> None:
+    checkpoint_file = tmp_path / "model.pt"
+    onnx_file = tmp_path / "latest.onnx"
+    checkpoint_file.write_text("checkpoint")
+    onnx_file.write_text("onnx")
+
+    with pytest.raises(ValueError, match="exactly one"):
+        resolve_policy(
+            checkpoint_file=str(checkpoint_file),
+            onnx_file=str(onnx_file),
+        )
 
 
 def test_textop_motion_command_cfg_rejects_invalid_future_steps() -> None:

@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Literal
-
-import tyro
-from mjlab.scripts.play import PlayConfig, run_play
 
 from mjlab_textop.core.contract import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.online.live import (
@@ -18,13 +14,16 @@ from mjlab_textop.core.online.live_registry import (
 )
 from mjlab_textop.core.task import (
     ensure_textop_task_registered,
+    register_online_textop_onnx_task,
     register_online_textop_task,
 )
+from mjlab_textop.scripts.policy import ResolvedPolicy, run_textop_play
 
 
 @dataclass(kw_only=True)
 class PlayLiveCommand:
-    checkpoint_file: str = field(default=tyro.MISSING)
+    checkpoint_file: str | None = None
+    onnx_file: str | None = None
     host: str = "127.0.0.1"
     port: int = 8765
     device: str = "cuda:0"
@@ -42,7 +41,7 @@ class PlayLiveCommand:
 def play_live_textop_motion(
     cfg: PlayLiveCommand,
     *,
-    checkpoint_file: Path,
+    policy: ResolvedPolicy,
 ) -> None:
     ensure_textop_task_registered()
     source = SocketTextOpOnlineSource(
@@ -56,23 +55,26 @@ def play_live_textop_motion(
     source.start()
     source_key = register_live_textop_source(source)
     try:
-        task_name = register_online_textop_task(
-            source_key=source_key,
-            source_mode="live",
-            future_steps=cfg.future_steps,
-            num_envs=cfg.num_envs,
-            anchor_alignment=cfg.anchor_alignment,
-            max_stale_steps=cfg.max_stale_steps,
-        )
+        if policy.kind == "onnx":
+            task_name = register_online_textop_onnx_task(
+                source_key=source_key,
+                source_mode="live",
+                future_steps=cfg.future_steps,
+                num_envs=cfg.num_envs,
+                anchor_alignment=cfg.anchor_alignment,
+                max_stale_steps=cfg.max_stale_steps,
+            )
+        else:
+            task_name = register_online_textop_task(
+                source_key=source_key,
+                source_mode="live",
+                future_steps=cfg.future_steps,
+                num_envs=cfg.num_envs,
+                anchor_alignment=cfg.anchor_alignment,
+                max_stale_steps=cfg.max_stale_steps,
+            )
 
-        play_cfg = PlayConfig(
-            agent="trained",
-            checkpoint_file=str(checkpoint_file),
-            num_envs=cfg.num_envs,
-            device=cfg.device,
-            viewer=cfg.viewer,
-        )
-        run_play(task_name, play_cfg)
+        run_textop_play(task_name, policy.file, cfg)
     finally:
         unregister_live_textop_source(source_key)
         source.close()

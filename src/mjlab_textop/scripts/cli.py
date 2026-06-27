@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TypeAlias
 
 import tyro
@@ -12,46 +11,17 @@ from mjlab_textop.scripts.play_online import (
     PlayOnlineCommand,
     play_online_textop_motion,
 )
-from mjlab_textop.scripts.play_onnx import (
-    PlayLiveOnnxCommand,
-    PlayOnlineOnnxCommand,
-    play_live_textop_onnx,
-    play_online_textop_onnx,
-)
+from mjlab_textop.scripts.policy import resolve_path, resolve_policy, verify_path
 
-TextOpCommand: TypeAlias = (
-    NormalizeCommand
-    | PlayOnlineCommand
-    | PlayLiveCommand
-    | PlayOnlineOnnxCommand
-    | PlayLiveOnnxCommand
-)
+TextOpCommand: TypeAlias = NormalizeCommand | PlayOnlineCommand | PlayLiveCommand
 
 TextOpCommandType = tyro.extras.subcommand_type_from_defaults(
     {
         "normalize": NormalizeCommand(),
         "play-online": PlayOnlineCommand(),
         "play-live": PlayLiveCommand(),
-        "play-online-onnx": PlayOnlineOnnxCommand(),
-        "play-live-onnx": PlayLiveOnnxCommand(),
     },
 )
-
-
-def resolve_path(path: str) -> Path:
-    return Path(path).expanduser().resolve()
-
-
-def verify_resolved(resolved: Path, label: str) -> Path:
-    if not resolved.exists():
-        raise FileNotFoundError(f"{label} does not exist: {resolved}")
-    if not resolved.is_file():
-        raise FileNotFoundError(f"{label} is not a file: {resolved}")
-    return resolved
-
-
-def verify_path(path: str, label: str) -> Path:
-    return verify_resolved(resolve_path(path), label)
 
 
 def run_command(cfg: TextOpCommand) -> None:
@@ -72,52 +42,25 @@ def run_command(cfg: TextOpCommand) -> None:
                 cfg.motion_file,
                 "Normalized motion file",
             )
-            checkpoint_file = verify_path(
-                cfg.checkpoint_file,
-                "Checkpoint file",
+            policy = resolve_policy(
+                checkpoint_file=cfg.checkpoint_file,
+                onnx_file=cfg.onnx_file,
             )
             play_online_textop_motion(
                 cfg,
                 motion_file=motion_file,
-                checkpoint_file=checkpoint_file,
+                policy=policy,
             )
             return
 
         case PlayLiveCommand():
-            checkpoint_file = verify_path(
-                cfg.checkpoint_file,
-                "Checkpoint file",
+            policy = resolve_policy(
+                checkpoint_file=cfg.checkpoint_file,
+                onnx_file=cfg.onnx_file,
             )
             play_live_textop_motion(
                 cfg,
-                checkpoint_file=checkpoint_file,
-            )
-            return
-
-        case PlayOnlineOnnxCommand():
-            motion_file = verify_path(
-                cfg.motion_file,
-                "Motion file",
-            )
-            policy_file = verify_path(
-                cfg.policy_file,
-                "ONNX policy file",
-            )
-            play_online_textop_onnx(
-                cfg,
-                motion_file=motion_file,
-                policy_file=policy_file,
-            )
-            return
-
-        case PlayLiveOnnxCommand():
-            policy_file = verify_path(
-                cfg.policy_file,
-                "ONNX policy file",
-            )
-            play_live_textop_onnx(
-                cfg,
-                policy_file=policy_file,
+                policy=policy,
             )
             return
 

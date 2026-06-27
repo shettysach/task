@@ -135,9 +135,17 @@ uv run --extra cu128 mjlab-textop play-online \
   --motion-file ./outputs/walk_forward.npz
 ```
 
-#### `play-online-onnx`
+To replay with TextOp's released `latest.onnx` policy instead:
 
-##### ONNX Setup
+```bash
+uv run --extra cu128 mjlab-textop play-online \
+  --onnx-file $ONNX_PATH \
+  --motion-file ./outputs/walk_forward.npz
+```
+
+#### ONNX Setup
+
+Use this setup before running a `play-*` command with `--onnx-file`:
 
 ```bash
 uvx hf download Yochish/TextOp-Data \
@@ -148,15 +156,7 @@ TextOpTracker/logs/rsl_rl/Pretrained/checkpoints/latest.onnx \
 $ONNX_PATH=/tmp/TextOpTracker/logs/rsl_rl/Pretrained/checkpoints/latest.onnx
 ```
 
-Replay the normalized motion through TextOp's released `latest.onnx` policy:
-
-```bash
-uv run --extra cu128 mjlab-textop play-online-onnx \
-  --policy-file $ONNX_PATH \
-  --motion-file ./outputs/walk_forward.npz
-```
-
-This path uses the ONNX actor directly and does not load an RSL-RL checkpoint.
+The `--checkpoint-file` and `--onnx-file` options are mutually exclusive.
 
 #### `play-live`
 
@@ -185,19 +185,16 @@ The live producer sends 50 Hz-indexed motion chunks. MJLab consumes them at the
 online command rate, clamps stale future frames during underruns, and reports
 online buffer/source diagnostics through command metrics.
 
-#### `play-live-onnx`
+To run the same live source with TextOp's released `latest.onnx` policy:
 
 Setup - [ONNX Setup](#onnx-setup)
 
-Run the live RobotMDAR-to-TextOp stream against TextOp's released `latest.onnx`
-policy:
-
 ```bash
-uv run --extra cu128 mjlab-textop play-live-onnx \
-  --policy-file $ONNX_PATH \
+uv run --extra cu128 mjlab-textop play-live \
+  --onnx-file $ONNX_PATH \
   --host 127.0.0.1 \
   --port 8765
 ```
 
-This path uses the live online source and the ONNX actor directly, without a
+The ONNX path uses the online source and the ONNX actor directly, without a
 `.pt` checkpoint.
