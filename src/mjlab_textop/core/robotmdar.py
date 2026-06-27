@@ -4,11 +4,11 @@ from typing import Any
 
 import numpy as np
 
-from mjlab_textop.core.contract import MJLAB_G1_JOINT_NAMES, TEXTOP_G1_JOINT_COUNT
 from mjlab_textop.core.motion import (
     reindex_mjlab_g1_joints_to_textop,
 )
 from mjlab_textop.core.online.source import TextOpMotionBlock
+from mjlab_textop.core.schema import MJLAB_G1_JOINT_NAMES, TEXTOP_G1_JOINT_COUNT
 
 # RobotMDAR predicts 23 G1 DoFs.
 # MJLab G1 has 29 joints; RobotMDAR does not output wrist joints.

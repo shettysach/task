@@ -9,9 +9,9 @@ from mjlab.scene import Scene
 from mjlab.sim.sim import Simulation, SimulationCfg
 from mjlab.tasks.tracking.config.g1.env_cfgs import unitree_g1_flat_tracking_env_cfg
 
-from mjlab_textop.core.contract import MJLAB_G1_JOINT_NAMES
 from mjlab_textop.core.motion import reindex_textop_g1_joints_to_mjlab
 from mjlab_textop.core.robotmdar_record import load_robotmdar_raw_record
+from mjlab_textop.core.schema import MJLAB_G1_JOINT_NAMES
 
 
 def normalize(

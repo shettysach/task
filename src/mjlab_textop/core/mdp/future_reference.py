@@ -6,7 +6,7 @@ import torch
 
 
 @runtime_checkable
-class TextOpFutureReferenceCommand(Protocol):
+class FutureReferenceCommand(Protocol):
     @property
     def future_joint_pos(self) -> torch.Tensor: ...
 

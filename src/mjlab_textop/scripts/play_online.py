@@ -6,8 +6,8 @@ from typing import Literal
 
 import tyro
 
-from mjlab_textop.core.contract import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
+from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.task import (
     ensure_textop_task_registered,
     register_online_textop_onnx_task,
@@ -26,7 +26,6 @@ class PlayOnlineCommand:
     viewer: Literal["auto", "native", "viser"] = "auto"
     future_steps: int = TEXTOP_FUTURE_STEPS
     block_size: int = 8
-    max_stale_steps: int = 25
     reset_robot_to_reference: bool = True
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
@@ -48,7 +47,6 @@ def play_online_textop_motion(
             future_steps=cfg.future_steps,
             num_envs=cfg.num_envs,
             anchor_alignment=cfg.anchor_alignment,
-            max_stale_steps=cfg.max_stale_steps,
             reset_robot_to_reference=cfg.reset_robot_to_reference,
         )
     else:
@@ -58,7 +56,6 @@ def play_online_textop_motion(
             future_steps=cfg.future_steps,
             num_envs=cfg.num_envs,
             anchor_alignment=cfg.anchor_alignment,
-            max_stale_steps=cfg.max_stale_steps,
             reset_robot_to_reference=cfg.reset_robot_to_reference,
         )
 

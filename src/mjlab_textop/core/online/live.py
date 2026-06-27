@@ -9,12 +9,10 @@ from typing import Any
 
 import numpy as np
 
-from mjlab_textop.core.motion import (
-    normalize_quat,
-    validate_frame_vector_array,
-    validate_g1_joint_frames,
+from mjlab_textop.core.online.source import (
+    TextOpMotionBlock,
+    validate_textop_motion_block,
 )
-from mjlab_textop.core.online.source import TextOpMotionBlock
 
 
 @dataclass(frozen=True)
@@ -72,35 +70,16 @@ def parse_textop_block_message(
     if missing:
         raise ValueError(f"TextOp live block missing required fields: {missing}")
 
-    index = int(data["index"])
-    joint_pos = validate_g1_joint_frames("joint_pos", data["joint_pos"])
-    joint_vel = validate_g1_joint_frames("joint_vel", data["joint_vel"])
-    anchor_pos_w = validate_frame_vector_array("anchor_pos_w", data["anchor_pos_w"], 3)
-    anchor_quat_w = normalize_quat(
-        validate_frame_vector_array("anchor_quat_w", data["anchor_quat_w"], 4)
-    )
-
-    for name, value in (
-        ("joint_vel", joint_vel),
-        ("anchor_pos_w", anchor_pos_w),
-        ("anchor_quat_w", anchor_quat_w),
-    ):
-        if value.shape[0] != joint_pos.shape[0]:
-            raise ValueError(
-                f"{name} frame count {value.shape[0]} differs from "
-                f"joint_pos frame count {joint_pos.shape[0]}"
-            )
-
-    return (
+    block = validate_textop_motion_block(
         TextOpMotionBlock(
-            index=index,
-            joint_pos=joint_pos,
-            joint_vel=joint_vel,
-            anchor_pos_w=anchor_pos_w,
-            anchor_quat_w=anchor_quat_w,
-        ),
-        float(data.get("fps", default_fps)),
+            index=int(data["index"]),
+            joint_pos=np.asarray(data["joint_pos"]),
+            joint_vel=np.asarray(data["joint_vel"]),
+            anchor_pos_w=np.asarray(data["anchor_pos_w"]),
+            anchor_quat_w=np.asarray(data["anchor_quat_w"]),
+        )
     )
+    return block, float(data.get("fps", default_fps))
 
 
 class SocketTextOpOnlineSource:

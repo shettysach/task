@@ -27,7 +27,7 @@ class _FakeCommandManager:
         return self.command
 
 
-class _FakeTextOpFutureReferenceCommand:
+class _FakeFutureReferenceCommand:
     @property
     def future_joint_pos(self) -> torch.Tensor:
         return self._values["future_joint_pos"]
@@ -53,7 +53,7 @@ class _FakeTextOpFutureReferenceCommand:
         return self._values["future_anchor_quat_w"]
 
 
-def _fake_textop_command(**kwargs) -> _FakeTextOpFutureReferenceCommand:
+def _fake_textop_command(**kwargs) -> _FakeFutureReferenceCommand:
     if "future_joint_pos" in kwargs:
         num_envs = int(kwargs["future_joint_pos"].shape[0])
         future_steps = int(kwargs["future_joint_pos"].shape[1])
@@ -65,7 +65,7 @@ def _fake_textop_command(**kwargs) -> _FakeTextOpFutureReferenceCommand:
     kwargs.setdefault("future_anchor_quat_w", torch.zeros(num_envs, future_steps, 4))
     kwargs.setdefault("robot_anchor_pos_w", torch.zeros(num_envs, 3))
     kwargs.setdefault("robot_anchor_quat_w", torch.zeros(num_envs, 4))
-    command = object.__new__(_FakeTextOpFutureReferenceCommand)
+    command = object.__new__(_FakeFutureReferenceCommand)
     command._values = kwargs
     return command
 
@@ -166,7 +166,7 @@ def test_projected_gravity_reuses_mjlab_observation() -> None:
 def test_observation_rejects_non_textop_command() -> None:
     env = _fake_env_with_command(command=object(), num_envs=1)
 
-    with pytest.raises(TypeError, match="TextOpFutureReferenceCommand"):
+    with pytest.raises(TypeError, match="FutureReferenceCommand"):
         future_joint_window(env)
 
 

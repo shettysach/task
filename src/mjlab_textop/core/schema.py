@@ -1,21 +1,3 @@
-"""
-`T` = number of time frames in the motion clip.
-`B` = number of tracked robot bodies/links in the body arrays.
-
-TextOp tracker NPZ struct:
-- `joint_pos`, `joint_vel`: `[T, 29]` G1 joints in IsaacLab order.
-- `body_pos_w`, `body_lin_vel_w`, `body_ang_vel_w`: `[T, B, 3]` world-frame body data.
-- `body_quat_w`: `[T, B, 4]` world-frame body quaternions.
-- fps is optional when an explicit loader fps is provided.
-- body index 0 is the pelvis/root body used as the TextOp anchor.
-
-MJLab normalized motion struct:
-- `joint_pos`, `joint_vel`: `[T, 29]` G1 joints in MJLab order.
-- `body_pos_w`, `body_lin_vel_w`, `body_ang_vel_w`: `[T, B, 3]` MJLab body order.
-- `body_quat_w`: `[T, B, 4]` MJLab body order.
-- fps is stored in the output NPZ.
-"""
-
 from __future__ import annotations
 
 MJLAB_G1_JOINT_NAMES: tuple[str, ...] = (
@@ -58,18 +40,6 @@ TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX: tuple[int, ...] = (
 # fmt:on
 
 TEXTOP_G1_JOINT_COUNT = len(MJLAB_G1_JOINT_NAMES)
-
-TEXTOP_REQUIRED_INPUT_KEYS: tuple[str, ...] = (
-    "joint_pos",
-    "joint_vel",
-    "body_pos_w",
-    "body_quat_w",
-)
-TEXTOP_OPTIONAL_INPUT_KEYS: tuple[str, ...] = (
-    "fps",
-    "body_lin_vel_w",
-    "body_ang_vel_w",
-)
 
 TEXTOP_ROOT_BODY_INDEX = 0  # pelvis
 TEXTOP_FUTURE_STEPS = 5

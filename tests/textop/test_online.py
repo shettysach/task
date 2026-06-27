@@ -7,7 +7,6 @@ import pytest
 import torch
 from builders import fake_env, motion_block, write_mjlab_motion_npz
 
-from mjlab_textop.core.contract import TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 from mjlab_textop.core.mdp.online_commands import (
     OnlineTextOpMotionCommand,
     OnlineTextOpMotionCommandCfg,
@@ -21,6 +20,7 @@ from mjlab_textop.core.online.replay import (
     QueueTextOpOnlineSource,
     make_mjlab_npz_replay_source,
 )
+from mjlab_textop.core.schema import TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 
 
 class _LiveTextOpOnlineSource:
@@ -242,14 +242,13 @@ def test_online_command_rejects_vectorized_envs() -> None:
         )
 
 
-def test_online_command_clamps_too_many_consecutive_stale_windows() -> None:
+def test_online_command_counts_consecutive_stale_windows() -> None:
     source = QueueTextOpOnlineSource([motion_block(frames=5)])
     command = OnlineTextOpMotionCommand(
         OnlineTextOpMotionCommandCfg(
             source=source,
             source_mode="replay",
             future_steps=5,
-            max_stale_steps=1,
         ),
         fake_env(),
     )
@@ -264,7 +263,7 @@ def test_online_command_clamps_too_many_consecutive_stale_windows() -> None:
     future = command.future_joint_pos
     command._update_metrics()
 
-    assert command._consecutive_stale_steps > command.cfg.max_stale_steps
+    assert command._consecutive_stale_steps > 0
     assert future.shape == (1, 5, 29)
 
 
@@ -275,7 +274,6 @@ def test_online_command_replay_allows_stale_windows_at_clip_end() -> None:
             source=source,
             source_mode="replay",
             future_steps=5,
-            max_stale_steps=1,
         ),
         fake_env(),
     )
@@ -285,7 +283,7 @@ def test_online_command_replay_allows_stale_windows_at_clip_end() -> None:
         command._update_command()
         _ = command.future_joint_pos
 
-    assert command._consecutive_stale_steps > command.cfg.max_stale_steps
+    assert command._consecutive_stale_steps > 0
     assert command.future_joint_pos.shape == (1, 5, 29)
 
 

@@ -4,11 +4,11 @@ import numpy as np
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
-from mjlab_textop.core.contract import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.mdp.offline_commands import TextOpMotionCommandCfg
 from mjlab_textop.core.mdp.online_commands import OnlineTextOpMotionCommandCfg
 from mjlab_textop.core.online.source import QueueTextOpOnlineSource, TextOpMotionBlock
 from mjlab_textop.core.onnx_policy import TextOpOnnxPolicyRunner
+from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.task import (
     ONLINE_TEXTOP_ONNX_TASK_NAME,
     ONLINE_TEXTOP_TASK_NAME,

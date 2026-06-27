@@ -3,7 +3,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mjlab_textop.core.contract import MJLAB_G1_JOINT_NAMES
 from mjlab_textop.core.motion import (
     reindex_mjlab_g1_joints_to_textop,
     reindex_textop_g1_joints_to_mjlab,
@@ -22,6 +21,7 @@ from mjlab_textop.core.robotmdar_record import (
     load_robotmdar_raw_record,
     save_robotmdar_raw_record,
 )
+from mjlab_textop.core.schema import MJLAB_G1_JOINT_NAMES
 
 
 def test_robotmdar_dof_indices_are_derived_from_joint_names() -> None:

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, cast
 
 import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 
-from mjlab_textop.core.contract import TEXTOP_FUTURE_STEPS, TEXTOP_G1_JOINT_COUNT
 from mjlab_textop.core.online.buffer import (
     TextOpRollingMotionBuffer,
 )
@@ -17,6 +16,7 @@ from mjlab_textop.core.online.source import (
     ResettableTextOpOnlineSource,
     TextOpOnlineSource,
 )
+from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS, TEXTOP_G1_JOINT_COUNT
 
 TextOpOnlineSourceMode = Literal["replay", "live"]
 
@@ -32,7 +32,6 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     source_mode: TextOpOnlineSourceMode = "live"
     start_frame: int = 0
     startup_timeout_steps: int = 250
-    max_stale_steps: int = 25
     max_poll_blocks: int = 16
     max_buffer_frames: int | None = 512
     clear_buffer_on_reset: bool = True
@@ -205,8 +204,8 @@ class OnlineTextOpMotionCommand(CommandTerm):
         if self.cfg.source_mode == "replay":
             if self.cfg.clear_buffer_on_reset:
                 self.buffer.clear()
-            assert isinstance(self.cfg.source, ResettableTextOpOnlineSource)
-            self.cfg.source.reset()
+            source = cast(ResettableTextOpOnlineSource, self.cfg.source)
+            source.reset()
             self._poll_source()
 
             self.current_frame = int(self.cfg.start_frame)
@@ -348,8 +347,6 @@ class OnlineTextOpMotionCommand(CommandTerm):
         if self.cfg.anchor_alignment == "direct_world":
             self._anchor_pos_offset_w.zero_()
             return
-        if self.cfg.anchor_alignment != "align_to_robot_start":
-            raise ValueError(f"Unknown anchor alignment: {self.cfg.anchor_alignment}")
 
         _, _, anchor_pos_w, _, _ = self.buffer.get_future(self.current_frame, 1)
         self._anchor_pos_offset_w = self.robot_anchor_pos_w[0] - anchor_pos_w[0]
@@ -397,7 +394,6 @@ def use_online_textop_motion_command(
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     ),
-    max_stale_steps: int = 25,
     reset_robot_to_reference: bool = True,
 ) -> None:
     motion_cfg = env_cfg.commands[command_name]
@@ -413,6 +409,5 @@ def use_online_textop_motion_command(
         source_key=source_key,
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
-        max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
     )

@@ -12,7 +12,10 @@ from mjlab_textop.core.motion import (
     validate_frame_vector_array,
     validate_g1_joint_frames,
 )
-from mjlab_textop.core.online.source import TextOpMotionBlock
+from mjlab_textop.core.online.source import (
+    TextOpMotionBlock,
+    validate_textop_motion_block,
+)
 
 ROBOTMDAR_RAW_RECORD_REQUIRED_KEYS: tuple[str, ...] = (
     "fps",
@@ -59,34 +62,17 @@ def save_robotmdar_raw_record(
 
     frames: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
     for block in blocks:
-        joint_pos = validate_g1_joint_frames("joint_pos", block.joint_pos)
-        joint_vel = validate_g1_joint_frames("joint_vel", block.joint_vel)
-        anchor_pos_w = validate_frame_vector_array(
-            "anchor_pos_w", block.anchor_pos_w, 3
-        )
-        anchor_quat_w = normalize_quat(
-            validate_frame_vector_array("anchor_quat_w", block.anchor_quat_w, 4)
-        )
-        _validate_matching_frame_counts(
-            joint_pos=joint_pos,
-            joint_vel=joint_vel,
-            anchor_pos_w=anchor_pos_w,
-            anchor_quat_w=anchor_quat_w,
-        )
-        if block.index < 0:
-            raise ValueError(
-                f"TextOp block index must be non-negative, got {block.index}"
-            )
+        block = validate_textop_motion_block(block)
 
-        for offset in range(joint_pos.shape[0]):
+        for offset in range(block.joint_pos.shape[0]):
             frame_index = block.index + offset
             if frame_index in frames:
                 raise ValueError(f"Duplicate RobotMDAR raw frame index: {frame_index}")
             frames[frame_index] = (
-                joint_pos[offset],
-                joint_vel[offset],
-                anchor_pos_w[offset],
-                anchor_quat_w[offset],
+                block.joint_pos[offset],
+                block.joint_vel[offset],
+                block.anchor_pos_w[offset],
+                block.anchor_quat_w[offset],
             )
 
     ordered_indices = np.asarray(sorted(frames), dtype=np.int64)

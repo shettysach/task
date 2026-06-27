@@ -11,7 +11,6 @@ from mjlab.tasks.tracking.config.g1.rl_cfg import unitree_g1_tracking_ppo_runner
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
-from mjlab_textop.core.contract import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.mdp.observations import (
     future_anchor_ori_b,
     future_anchor_pos_b,
@@ -28,6 +27,7 @@ from mjlab_textop.core.mdp.online_commands import (
 )
 from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.onnx_policy import TextOpOnnxPolicyRunner
+from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 
 TEXTOP_TASK_NAME = "Mjlab-TextOp-Flat-Unitree-G1"
 ONLINE_TEXTOP_TASK_NAME = "Mjlab-OnlineTextOp-Flat-Unitree-G1"
@@ -62,7 +62,6 @@ def make_online_textop_g1_flat_tracking_env_cfg(
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     ),
-    max_stale_steps: int = 25,
     reset_robot_to_reference: bool = True,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
@@ -75,7 +74,6 @@ def make_online_textop_g1_flat_tracking_env_cfg(
         source_key=source_key,
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
-        max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
@@ -96,7 +94,6 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     ),
-    max_stale_steps: int = 25,
     reset_robot_to_reference: bool = True,
 ):
     cfg = unitree_g1_flat_tracking_env_cfg(play=play)
@@ -109,7 +106,6 @@ def make_online_textop_onnx_g1_flat_tracking_env_cfg(
         source_key=source_key,
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
-        max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
     )
     cfg.commands["motion"].anchor_body_name = "pelvis"  # ty:ignore[unresolved-attribute]
@@ -132,7 +128,6 @@ def register_online_textop_task(
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     ),
-    max_stale_steps: int = 25,
     reset_robot_to_reference: bool = True,
 ) -> str:
     mode_name = source_mode.capitalize()
@@ -144,7 +139,6 @@ def register_online_textop_task(
         source_key=source_key,
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
-        max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
     )
     env_cfg.scene.num_envs = num_envs
@@ -169,7 +163,6 @@ def register_online_textop_onnx_task(
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     ),
-    max_stale_steps: int = 25,
     reset_robot_to_reference: bool = True,
 ) -> str:
     mode_name = source_mode.capitalize()
@@ -181,7 +174,6 @@ def register_online_textop_onnx_task(
         source_key=source_key,
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
-        max_stale_steps=max_stale_steps,
         reset_robot_to_reference=reset_robot_to_reference,
     )
     env_cfg.scene.num_envs = num_envs

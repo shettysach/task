@@ -6,6 +6,12 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
+from mjlab_textop.core.motion import (
+    normalize_quat,
+    validate_frame_vector_array,
+    validate_g1_joint_frames,
+)
+
 
 @dataclass(frozen=True)
 class TextOpMotionBlock:
@@ -20,6 +26,36 @@ class TextOpMotionBlock:
     joint_vel: np.ndarray
     anchor_pos_w: np.ndarray
     anchor_quat_w: np.ndarray
+
+
+def validate_textop_motion_block(block: TextOpMotionBlock) -> TextOpMotionBlock:
+    joint_pos = validate_g1_joint_frames("joint_pos", block.joint_pos)
+    joint_vel = validate_g1_joint_frames("joint_vel", block.joint_vel)
+    anchor_pos_w = validate_frame_vector_array("anchor_pos_w", block.anchor_pos_w, 3)
+    anchor_quat_w = normalize_quat(
+        validate_frame_vector_array("anchor_quat_w", block.anchor_quat_w, 4)
+    )
+
+    if block.index < 0:
+        raise ValueError(f"TextOp block index must be non-negative, got {block.index}")
+    for name, value in (
+        ("joint_vel", joint_vel),
+        ("anchor_pos_w", anchor_pos_w),
+        ("anchor_quat_w", anchor_quat_w),
+    ):
+        if value.shape[0] != joint_pos.shape[0]:
+            raise ValueError(
+                f"{name} frame count {value.shape[0]} differs from "
+                f"joint_pos frame count {joint_pos.shape[0]}"
+            )
+
+    return TextOpMotionBlock(
+        index=block.index,
+        joint_pos=joint_pos,
+        joint_vel=joint_vel,
+        anchor_pos_w=anchor_pos_w,
+        anchor_quat_w=anchor_quat_w,
+    )
 
 
 class TextOpOnlineSource(Protocol):

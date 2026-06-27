@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from mjlab_textop.core.contract import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.online.live import (
     SocketTextOpOnlineSource,
     SocketTextOpSourceCfg,
@@ -12,6 +11,7 @@ from mjlab_textop.core.online.live_registry import (
     register_live_textop_source,
     unregister_live_textop_source,
 )
+from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.task import (
     ensure_textop_task_registered,
     register_online_textop_onnx_task,
@@ -32,7 +32,6 @@ class PlayLiveCommand:
     future_steps: int = TEXTOP_FUTURE_STEPS
     fps: float = 50.0
     max_queue_blocks: int = 32
-    max_stale_steps: int = 25
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     )
@@ -62,7 +61,6 @@ def play_live_textop_motion(
                 future_steps=cfg.future_steps,
                 num_envs=cfg.num_envs,
                 anchor_alignment=cfg.anchor_alignment,
-                max_stale_steps=cfg.max_stale_steps,
             )
         else:
             task_name = register_online_textop_task(
@@ -71,7 +69,6 @@ def play_live_textop_motion(
                 future_steps=cfg.future_steps,
                 num_envs=cfg.num_envs,
                 anchor_alignment=cfg.anchor_alignment,
-                max_stale_steps=cfg.max_stale_steps,
             )
 
         run_textop_play(task_name, policy.file, cfg)

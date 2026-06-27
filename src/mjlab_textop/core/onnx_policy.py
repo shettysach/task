@@ -6,7 +6,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from mjlab_textop.core.contract import TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
+from mjlab_textop.core.schema import TEXTOP_ISAACLAB_TO_MJLAB_G1_JOINT_INDEX
 
 
 class TextOpOnnxPolicy:

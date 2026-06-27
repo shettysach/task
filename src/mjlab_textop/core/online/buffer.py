@@ -3,12 +3,12 @@ from __future__ import annotations
 import torch
 
 from mjlab_textop.core.motion import (
-    normalize_quat,
     reindex_textop_g1_joints_to_mjlab,
-    validate_frame_vector_array,
-    validate_g1_joint_frames,
 )
-from mjlab_textop.core.online.source import TextOpMotionBlock
+from mjlab_textop.core.online.source import (
+    TextOpMotionBlock,
+    validate_textop_motion_block,
+)
 
 
 class TextOpRollingMotionBuffer:
@@ -50,32 +50,10 @@ class TextOpRollingMotionBuffer:
         self._latest_index = None
 
     def append_block(self, block: TextOpMotionBlock) -> None:
-        joint_pos = validate_g1_joint_frames("joint_pos", block.joint_pos)
-        joint_vel = validate_g1_joint_frames("joint_vel", block.joint_vel)
-        anchor_pos_w = validate_frame_vector_array(
-            "anchor_pos_w", block.anchor_pos_w, 3
-        )
-        anchor_quat_w = normalize_quat(
-            validate_frame_vector_array("anchor_quat_w", block.anchor_quat_w, 4)
-        )
+        block = validate_textop_motion_block(block)
 
-        if block.index < 0:
-            raise ValueError(
-                f"TextOp block index must be non-negative, got {block.index}"
-            )
-        for name, value in (
-            ("joint_vel", joint_vel),
-            ("anchor_pos_w", anchor_pos_w),
-            ("anchor_quat_w", anchor_quat_w),
-        ):
-            if value.shape[0] != joint_pos.shape[0]:
-                raise ValueError(
-                    f"{name} frame count {value.shape[0]} differs from "
-                    f"joint_pos frame count {joint_pos.shape[0]}"
-                )
-
-        joint_pos = reindex_textop_g1_joints_to_mjlab(joint_pos)
-        joint_vel = reindex_textop_g1_joints_to_mjlab(joint_vel)
+        joint_pos = reindex_textop_g1_joints_to_mjlab(block.joint_pos)
+        joint_vel = reindex_textop_g1_joints_to_mjlab(block.joint_vel)
 
         for offset in range(joint_pos.shape[0]):
             frame = block.index + offset
@@ -86,10 +64,10 @@ class TextOpRollingMotionBuffer:
                 joint_vel[offset], dtype=torch.float32, device=self.device
             )
             self._anchor_pos_w[frame] = torch.as_tensor(
-                anchor_pos_w[offset], dtype=torch.float32, device=self.device
+                block.anchor_pos_w[offset], dtype=torch.float32, device=self.device
             )
             self._anchor_quat_w[frame] = torch.as_tensor(
-                anchor_quat_w[offset], dtype=torch.float32, device=self.device
+                block.anchor_quat_w[offset], dtype=torch.float32, device=self.device
             )
 
         block_latest = block.index + joint_pos.shape[0] - 1
