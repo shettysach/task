@@ -78,11 +78,7 @@ def run_producer(args: argparse.Namespace) -> None:
         runtime.get_zero_feature()
         .to(args.device)
         .reshape(1, 1, -1)
-        .repeat(
-            1,
-            history_len,
-            1,
-        )
+        .repeat(1, history_len, 1)
     )
     abs_pose = runtime.get_zero_abs_pose((1,), device=args.device)
     planner = make_prompt_planner(args)

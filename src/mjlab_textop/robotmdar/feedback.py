@@ -103,7 +103,9 @@ class UdpFeedbackReceiver:
             self._latest_monotonic = time.monotonic()
 
 
-def parse_feedback_observation(message: bytes | str | dict[str, Any]) -> FeedbackObservation:
+def parse_feedback_observation(
+    message: bytes | str | dict[str, Any],
+) -> FeedbackObservation:
     if isinstance(message, bytes):
         message = message.decode("utf-8")
     if isinstance(message, str):
@@ -128,8 +130,8 @@ def parse_feedback_observation(message: bytes | str | dict[str, Any]) -> Feedbac
         fall_reason=(
             None if data.get("fall_reason") is None else str(data["fall_reason"])
         ),
-        robot_anchor_pos_w=_fixed_float_tuple(data["robot_anchor_pos_w"], 3),
-        robot_anchor_quat_w=_fixed_float_tuple(data["robot_anchor_quat_w"], 4),
+        robot_anchor_pos_w=_fixed_float_tuple(data["robot_anchor_pos_w"], 3),  # ty:ignore[invalid-argument-type]
+        robot_anchor_quat_w=_fixed_float_tuple(data["robot_anchor_quat_w"], 4),  # ty:ignore[invalid-argument-type]
     )
 
 

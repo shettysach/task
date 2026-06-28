@@ -36,9 +36,7 @@ def normalize(
 
     joint_pos_mjlab = reindex_textop_g1_joints_to_mjlab(record.joint_pos)
     joint_vel_mjlab = reindex_textop_g1_joints_to_mjlab(record.joint_vel)
-    root_lin_vel_w = _finite_difference_linear_velocity(
-        record.anchor_pos_w, record.fps
-    )
+    root_lin_vel_w = _finite_difference_linear_velocity(record.anchor_pos_w, record.fps)
     root_ang_vel_w = np.zeros_like(root_lin_vel_w, dtype=np.float32)
 
     sim_cfg = SimulationCfg()
