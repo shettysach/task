@@ -17,11 +17,14 @@ from mjlab_textop.core.robotmdar import (
     robotmdar_motion_dict_to_block,
     slice_motion_dict_tail,
 )
+from mjlab_textop.robotmdar.feedback import UdpFeedbackReceiver
 from mjlab_textop.robotmdar.planner import (
+    ConstantPromptSelector,
+    FeedbackPlanner,
     GeneratedBlockInfo,
+    ManualPromptPlanner,
     PlannerContext,
-    ScheduledPromptPlanner,
-    make_prompt_planner,
+    PromptPlanner,
 )
 
 
@@ -85,98 +88,99 @@ def run_producer(args: argparse.Namespace) -> None:
     abs_pose = runtime.get_zero_abs_pose((1,), device=args.device)
     planner = make_prompt_planner(args)
     planner.start()
-    if isinstance(planner, ScheduledPromptPlanner):
-        total_frames = sum(phase.frames for phase in planner.phases)
-        print(
-            f"Using scheduled prompt stream with {len(planner.phases)} phases "
-            f"({total_frames} frames).",
-            file=sys.stderr,
-        )
+    if isinstance(planner, FeedbackPlanner):
+        print("Using feedback planner.", file=sys.stderr)
 
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
-            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server.bind((args.host, args.port))
-            server.listen(1)
-            print(f"Waiting for MJLab consumer on {args.host}:{args.port}")
-            conn, addr = server.accept()
-            print(f"MJLab consumer connected from {addr}")
-            with conn:
-                frame_index = 0
-                next_send_time = time.monotonic()
-                block_count = 0
-                while not planner.should_stop:
-                    block_start_time = time.monotonic()
-                    current_prompt = planner.choose_prompt(
-                        PlannerContext(
-                            frame_index=frame_index,
-                            block_count=block_count,
-                        )
-                    )
-                    with runtime.torch.no_grad():
-                        text_embedding = runtime.encode_text(
-                            clip_model, [current_prompt]
-                        ).float()
-                        future_motion, motion_dict, abs_pose = (
-                            runtime.generate_next_motion(
-                                vae=vae,
-                                denoiser=cfg_denoiser,
-                                diffusion=diffusion,
-                                val_data=val_data,
-                                text_embedding=text_embedding,
-                                history_motion=history_motion,
-                                abs_pose=abs_pose,
-                                future_len=future_len,
-                                use_full_sample=True,
-                                guidance_scale=args.guidance_scale,
-                                ret_fk=True,
-                                ret_fk_full=False,
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+                server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                server.bind((args.host, args.port))
+                server.listen(1)
+                print(f"Waiting for MJLab consumer on {args.host}:{args.port}")
+                conn, addr = server.accept()
+                print(f"MJLab consumer connected from {addr}")
+                with conn:
+                    frame_index = 0
+                    next_send_time = time.monotonic()
+                    block_count = 0
+                    while not planner.should_stop:
+                        block_start_time = time.monotonic()
+                        current_prompt = planner.choose_prompt(
+                            PlannerContext(
+                                frame_index=frame_index,
+                                block_count=block_count,
                             )
                         )
-                    history_motion = future_motion[:, -history_len:, :]
-                    block = robotmdar_motion_dict_to_block(
-                        slice_motion_dict_tail(motion_dict, future_len),
-                        index=frame_index,
-                    )
-                    conn.sendall(
-                        textop_block_to_ndjson_message(block, fps=args.fps).encode(
-                            "utf-8"
+                        with runtime.torch.no_grad():
+                            text_embedding = runtime.encode_text(
+                                clip_model, [current_prompt]
+                            ).float()
+                            future_motion, motion_dict, abs_pose = (
+                                runtime.generate_next_motion(
+                                    vae=vae,
+                                    denoiser=cfg_denoiser,
+                                    diffusion=diffusion,
+                                    val_data=val_data,
+                                    text_embedding=text_embedding,
+                                    history_motion=history_motion,
+                                    abs_pose=abs_pose,
+                                    future_len=future_len,
+                                    use_full_sample=True,
+                                    guidance_scale=args.guidance_scale,
+                                    ret_fk=True,
+                                    ret_fk_full=False,
+                                )
+                            )
+                        history_motion = future_motion[:, -history_len:, :]
+                        block = robotmdar_motion_dict_to_block(
+                            slice_motion_dict_tail(motion_dict, future_len),
+                            index=frame_index,
                         )
-                    )
-                    start_frame = frame_index
-                    block_frames = block.joint_pos.shape[0]
-                    frame_index += block_frames
-                    block_count += 1
-                    planner.on_block_sent(
-                        GeneratedBlockInfo(
-                            prompt=current_prompt,
-                            start_frame=start_frame,
-                            frames=block_frames,
-                            block_count=block_count,
+                        conn.sendall(
+                            textop_block_to_ndjson_message(block, fps=args.fps).encode(
+                                "utf-8"
+                            )
                         )
-                    )
+                        start_frame = frame_index
+                        block_frames = block.joint_pos.shape[0]
+                        frame_index += block_frames
+                        block_count += 1
+                        planner.on_block_sent(
+                            GeneratedBlockInfo(
+                                prompt=current_prompt,
+                                start_frame=start_frame,
+                                frames=block_frames,
+                                block_count=block_count,
+                            )
+                        )
 
-                    block_duration = block_frames / args.fps
-                    next_send_time += block_duration
-                    sleep_seconds = next_send_time - time.monotonic()
-                    if (
-                        args.log_every_blocks > 0
-                        and block_count % args.log_every_blocks == 0
-                        and not planner.input_active
-                    ):
-                        generation_ms = (time.monotonic() - block_start_time) * 1000.0
-                        lag_ms = max(0.0, -sleep_seconds * 1000.0)
-                        print(
-                            "stream "
-                            f"block={block_count} frame={frame_index} "
-                            f"prompt={current_prompt!r} gen_ms={generation_ms:.1f} "
-                            f"lag_ms={lag_ms:.1f}"
-                            f"{planner.log_suffix}",
-                            file=sys.stderr,
-                            end="",
-                            flush=True,
-                        )
-                    time.sleep(max(0.0, sleep_seconds))
+                        block_duration = block_frames / args.fps
+                        next_send_time += block_duration
+                        sleep_seconds = next_send_time - time.monotonic()
+                        if (
+                            args.log_every_blocks > 0
+                            and block_count % args.log_every_blocks == 0
+                            and not planner.input_active
+                        ):
+                            generation_ms = (
+                                time.monotonic() - block_start_time
+                            ) * 1000.0
+                            lag_ms = max(0.0, -sleep_seconds * 1000.0)
+                            print(
+                                "stream "
+                                f"block={block_count} frame={frame_index} "
+                                f"prompt={current_prompt!r} "
+                                f"gen_ms={generation_ms:.1f} "
+                                f"lag_ms={lag_ms:.1f}"
+                                f"{planner.log_suffix}",
+                                file=sys.stderr,
+                                end="",
+                                flush=True,
+                            )
+                        time.sleep(max(0.0, sleep_seconds))
+        finally:
+            planner.request_stop()
     except KeyboardInterrupt:
         planner.request_stop()
         print("Stopping RobotMDAR producer.", file=sys.stderr)
@@ -194,22 +198,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--fps", type=float, default=50.0)
     parser.add_argument("--guidance-scale", type=float, default=5.0)
+    parser.add_argument("--planner", choices=("manual", "feedback"), default="manual")
     parser.add_argument("--prompt", default="walk")
-    parser.add_argument(
-        "--schedule",
-        default=None,
-        help=(
-            "Comma-separated prompt schedule as 'prompt:frames' entries, e.g. "
-            "'walk forward:150,stand still:60,turn left:90'."
-        ),
-    )
-    parser.add_argument("--schedule-repeat", type=int, default=1)
-    parser.add_argument("--schedule-stop", action="store_true")
+    parser.add_argument("--feedback-listen-host", default="127.0.0.1")
+    parser.add_argument("--feedback-listen-port", type=int, default=None)
+    parser.add_argument("--query-every-blocks", type=int, default=4)
+    parser.add_argument("--fallback-prompt", default="stand still")
+    parser.add_argument("--stale-steps-threshold", type=int, default=5)
+    parser.add_argument("--feedback-timeout-sec", type=float, default=None)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
-    if args.schedule_repeat <= 0:
+    if args.planner == "feedback" and args.feedback_listen_port is None:
+        raise ValueError("--feedback-listen-port is required with --planner feedback")
+    if args.query_every_blocks <= 0:
         raise ValueError(
-            f"--schedule-repeat must be positive, got {args.schedule_repeat}"
+            f"--query-every-blocks must be positive, got {args.query_every_blocks}"
+        )
+    if args.stale_steps_threshold < 0:
+        raise ValueError(
+            "--stale-steps-threshold must be non-negative, "
+            f"got {args.stale_steps_threshold}"
         )
     return args
 
@@ -259,6 +267,24 @@ def _register_hydra_resolvers(OmegaConf) -> None:
             "now",
             lambda fmt: datetime.now().strftime(fmt),
         )
+
+
+def make_prompt_planner(args: argparse.Namespace) -> PromptPlanner:
+    if args.planner == "feedback":
+        receiver = UdpFeedbackReceiver(
+            host=args.feedback_listen_host,
+            port=args.feedback_listen_port,
+        )
+        return FeedbackPlanner(
+            observation_provider=receiver,
+            selector=ConstantPromptSelector(args.prompt),
+            initial_prompt=args.prompt,
+            query_every_blocks=args.query_every_blocks,
+            fallback_prompt=args.fallback_prompt,
+            stale_steps_threshold=args.stale_steps_threshold,
+            feedback_timeout_sec=args.feedback_timeout_sec,
+        )
+    return ManualPromptPlanner(args.prompt)
 
 
 if __name__ == "__main__":

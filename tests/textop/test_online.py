@@ -33,6 +33,14 @@ class _LiveTextOpOnlineSource:
         return self.blocks.pop(0)
 
 
+class _RecordingObservationPublisher:
+    def __init__(self) -> None:
+        self.payloads = []
+
+    def publish(self, payload) -> None:
+        self.payloads.append(payload)
+
+
 def test_rolling_buffer_reindexes_and_slices_first_five_frames() -> None:
     block = motion_block(frames=8)
     buffer = TextOpRollingMotionBuffer()
@@ -374,6 +382,33 @@ def test_online_command_updates_live_diagnostics_metrics() -> None:
     assert command.metrics["online_blocks_received"].item() == 4.0
     assert command.metrics["online_blocks_dropped"].item() == 1.0
     assert command.metrics["online_bad_messages"].item() == 2.0
+
+
+def test_online_command_publishes_observations_on_interval() -> None:
+    publisher = _RecordingObservationPublisher()
+    command = OnlineTextOpMotionCommand(
+        OnlineTextOpMotionCommandCfg(
+            source=QueueTextOpOnlineSource([motion_block(frames=8)]),
+            future_steps=5,
+            observation_publisher=publisher,
+            observation_publish_interval=2,
+        ),
+        fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
+    )
+
+    command._update_command()
+    command._update_metrics()
+    command._update_command()
+    command._update_metrics()
+    command._update_command()
+    command._update_metrics()
+
+    assert [payload["frame"] for payload in publisher.payloads] == [0, 2]
+    assert publisher.payloads[0]["started"] is True
+    assert publisher.payloads[0]["current_frame"] == 0
+    assert publisher.payloads[0]["latest_frame"] == 7
+    assert publisher.payloads[0]["robot_anchor_pos_w"] == [10.0, 20.0, 30.0]
+    assert publisher.payloads[0]["robot_anchor_quat_w"] == [1.0, 0.0, 0.0, 0.0]
 
 
 def test_online_command_replay_reset_rewinds_source() -> None:

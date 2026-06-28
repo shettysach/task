@@ -4,18 +4,14 @@ import threading
 from dataclasses import dataclass
 from typing import Protocol
 
+from mjlab_textop.robotmdar.feedback import FeedbackObservation
+
 
 @dataclass
 class PromptState:
     text: str
     stop: bool = False
     input_active: bool = False
-
-
-@dataclass(frozen=True)
-class ScheduledPromptPhase:
-    text: str
-    frames: int
 
 
 @dataclass(frozen=True)
@@ -30,33 +26,6 @@ class GeneratedBlockInfo:
     start_frame: int
     frames: int
     block_count: int
-
-
-class ScheduledPromptSource:
-    def __init__(self, phases: tuple[ScheduledPromptPhase, ...]) -> None:
-        if not phases:
-            raise ValueError("Scheduled prompt source requires at least one phase")
-        self.phases = phases
-        self.phase_index = 0
-        self.phase_elapsed_frames = 0
-
-    @property
-    def text(self) -> str:
-        return self.phases[self.phase_index].text
-
-    def advance(self, frames: int) -> bool:
-        if frames <= 0:
-            raise ValueError(f"frames must be positive, got {frames}")
-
-        self.phase_elapsed_frames += frames
-        while self.phase_elapsed_frames >= self.phases[self.phase_index].frames:
-            self.phase_elapsed_frames -= self.phases[self.phase_index].frames
-            self.phase_index += 1
-            if self.phase_index >= len(self.phases):
-                self.phase_index = len(self.phases) - 1
-                self.phase_elapsed_frames = self.phases[self.phase_index].frames
-                return True
-        return False
 
 
 class PromptPlanner(Protocol):
@@ -83,6 +52,35 @@ class PromptPlanner(Protocol):
 
     def on_block_sent(self, info: GeneratedBlockInfo) -> None:
         ...
+
+
+class PromptSelector(Protocol):
+    def choose_prompt(self, observation: FeedbackObservation | None) -> str:
+        ...
+
+
+class FeedbackObservationProvider(Protocol):
+    def start(self) -> None:
+        ...
+
+    def close(self) -> None:
+        ...
+
+    def latest(self) -> FeedbackObservation | None:
+        ...
+
+    def latest_age_seconds(self) -> float | None:
+        ...
+
+
+class ConstantPromptSelector:
+    def __init__(self, prompt: str) -> None:
+        if not prompt:
+            raise ValueError("prompt must not be empty")
+        self.prompt = prompt
+
+    def choose_prompt(self, observation: FeedbackObservation | None) -> str:
+        return self.prompt
 
 
 class ManualPromptPlanner:
@@ -120,17 +118,37 @@ class ManualPromptPlanner:
         return
 
 
-class ScheduledPromptPlanner:
+class FeedbackPlanner:
     def __init__(
         self,
-        phases: tuple[ScheduledPromptPhase, ...],
         *,
-        stop_on_complete: bool,
+        observation_provider: FeedbackObservationProvider,
+        selector: PromptSelector,
+        initial_prompt: str,
+        query_every_blocks: int,
+        fallback_prompt: str,
+        stale_steps_threshold: int,
+        feedback_timeout_sec: float | None = None,
     ) -> None:
-        self.phases = phases
-        self.source = ScheduledPromptSource(phases)
-        self.stop_on_complete = stop_on_complete
+        if query_every_blocks <= 0:
+            raise ValueError(
+                f"query_every_blocks must be positive, got {query_every_blocks}"
+            )
+        if stale_steps_threshold < 0:
+            raise ValueError(
+                "stale_steps_threshold must be non-negative, "
+                f"got {stale_steps_threshold}"
+            )
+        self.observation_provider = observation_provider
+        self.selector = selector
+        self.current_prompt = initial_prompt
+        self.query_every_blocks = query_every_blocks
+        self.fallback_prompt = fallback_prompt
+        self.stale_steps_threshold = stale_steps_threshold
+        self.feedback_timeout_sec = feedback_timeout_sec
         self._stop = False
+        self._last_query_block: int | None = None
+        self._last_override_reason: str | None = None
 
     @property
     def should_stop(self) -> bool:
@@ -142,67 +160,53 @@ class ScheduledPromptPlanner:
 
     @property
     def log_suffix(self) -> str:
-        return ""
+        if self._last_override_reason is None:
+            return ""
+        return f" planner_override={self._last_override_reason}"
 
     def start(self) -> None:
-        return
+        self.observation_provider.start()
 
     def request_stop(self) -> None:
         self._stop = True
+        self.observation_provider.close()
 
     def choose_prompt(self, context: PlannerContext) -> str:
-        return self.source.text
+        self._last_override_reason = None
+        observation = self.observation_provider.latest()
+
+        if self._feedback_is_stale():
+            return self.current_prompt
+
+        if (
+            observation is not None
+            and observation.consecutive_stale_steps >= self.stale_steps_threshold
+        ):
+            self.current_prompt = self.fallback_prompt
+            self._last_override_reason = "stale_tracking"
+            return self.current_prompt
+
+        if self._should_query_selector(context):
+            self.current_prompt = self.selector.choose_prompt(observation)
+            self._last_query_block = context.block_count
+
+        return self.current_prompt
 
     def on_block_sent(self, info: GeneratedBlockInfo) -> None:
-        schedule_finished = self.source.advance(info.frames)
-        if schedule_finished and self.stop_on_complete:
-            self._stop = True
+        return
 
+    def _should_query_selector(self, context: PlannerContext) -> bool:
+        if self._last_query_block is None:
+            return True
+        return context.block_count - self._last_query_block >= self.query_every_blocks
 
-def make_prompt_planner(args) -> PromptPlanner:
-    if args.schedule:
-        return ScheduledPromptPlanner(
-            parse_prompt_schedule(args.schedule, repeat=args.schedule_repeat),
-            stop_on_complete=args.schedule_stop,
-        )
-    return ManualPromptPlanner(args.prompt)
-
-
-def parse_prompt_schedule(
-    schedule: str,
-    *,
-    repeat: int = 1,
-) -> tuple[ScheduledPromptPhase, ...]:
-    if repeat <= 0:
-        raise ValueError(f"repeat must be positive, got {repeat}")
-
-    phases = []
-    for raw_entry in schedule.split(","):
-        entry = raw_entry.strip()
-        if not entry:
-            continue
-        if ":" not in entry:
-            raise ValueError(
-                f"Schedule entry must be formatted as 'prompt:frames': {entry!r}"
-            )
-        prompt, raw_frames = entry.rsplit(":", 1)
-        prompt = prompt.strip()
-        raw_frames = raw_frames.strip()
-        if not prompt:
-            raise ValueError(f"Schedule entry has empty prompt: {entry!r}")
-        try:
-            frames = int(raw_frames)
-        except ValueError as exc:
-            raise ValueError(f"Invalid frame count in schedule entry: {entry!r}") from exc
-        if frames <= 0:
-            raise ValueError(
-                f"Schedule frame count must be positive in entry: {entry!r}"
-            )
-        phases.append(ScheduledPromptPhase(text=prompt, frames=frames))
-
-    if not phases:
-        raise ValueError("Schedule must contain at least one prompt phase")
-    return tuple(phases * repeat)
+    def _feedback_is_stale(self) -> bool:
+        if self.feedback_timeout_sec is None:
+            return False
+        latest_age = self.observation_provider.latest_age_seconds()
+        if latest_age is None:
+            return False
+        return latest_age > self.feedback_timeout_sec
 
 
 def _prompt_loop(prompt: PromptState) -> None:

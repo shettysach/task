@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from mjlab_textop.core.feedback.observation import TextOpObservationPublisher
 from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.source import TextOpOnlineSource
 from mjlab_textop.core.task import (
@@ -66,6 +67,8 @@ def register_textop_play_task(
         "align_to_robot_start"
     ),
     reset_robot_to_reference: bool = True,
+    observation_publisher: TextOpObservationPublisher | None = None,
+    observation_publish_interval: int = 1,
 ) -> str:
     if policy.kind == "onnx":
         return register_online_textop_onnx_task(
@@ -76,6 +79,8 @@ def register_textop_play_task(
             num_envs=num_envs,
             anchor_alignment=anchor_alignment,
             reset_robot_to_reference=reset_robot_to_reference,
+            observation_publisher=observation_publisher,
+            observation_publish_interval=observation_publish_interval,
         )
     else:
         return register_online_textop_task(
@@ -86,4 +91,6 @@ def register_textop_play_task(
             num_envs=num_envs,
             anchor_alignment=anchor_alignment,
             reset_robot_to_reference=reset_robot_to_reference,
+            observation_publisher=observation_publisher,
+            observation_publish_interval=observation_publish_interval,
         )

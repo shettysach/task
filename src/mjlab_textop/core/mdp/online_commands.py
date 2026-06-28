@@ -7,6 +7,10 @@ import torch
 from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 
+from mjlab_textop.core.feedback.observation import (
+    TextOpObservationPublisher,
+    make_online_textop_observation,
+)
 from mjlab_textop.core.online.buffer import (
     TextOpRollingMotionBuffer,
 )
@@ -39,10 +43,17 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     )
+    observation_publisher: TextOpObservationPublisher | None = None
+    observation_publish_interval: int = 1
 
     def __post_init__(self) -> None:
         if self.future_steps <= 0:
             raise ValueError(f"future_steps must be positive, got {self.future_steps}")
+        if self.observation_publish_interval <= 0:
+            raise ValueError(
+                "observation_publish_interval must be positive, "
+                f"got {self.observation_publish_interval}"
+            )
         if self.source_mode not in ("replay", "live"):
             raise ValueError(f"Unknown source_mode: {self.source_mode}")
         if self.source_mode == "replay" and not isinstance(
@@ -88,6 +99,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._last_stale_steps = 0
         self._consecutive_stale_steps = 0
         self._last_stale_frame: int | None = None
+        self._last_observation_publish_frame: int | None = None
         self._anchor_pos_offset_w = torch.zeros(3, device=self.device)
 
         self.metrics["online_buffer_frames"] = torch.zeros(
@@ -194,6 +206,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
             self.metrics["online_bad_messages"][:] = float(
                 getattr(diagnostics, "bad_messages", 0)
             )
+        self._maybe_publish_observation(latest_index=latest_index, lag_frames=lag_frames)
 
     def _resample_command(self, env_ids: torch.Tensor) -> None:
         if len(env_ids) == 0:
@@ -382,6 +395,37 @@ class OnlineTextOpMotionCommand(CommandTerm):
                 f"{float(fps):g} != {expected_fps:g}"
             )
 
+    def _maybe_publish_observation(
+        self,
+        *,
+        latest_index: int | None,
+        lag_frames: int,
+    ) -> None:
+        publisher = self.cfg.observation_publisher
+        if publisher is None or not self._started:
+            return
+        if (
+            self._last_observation_publish_frame is not None
+            and self.current_frame - self._last_observation_publish_frame
+            < self.cfg.observation_publish_interval
+        ):
+            return
+
+        payload = make_online_textop_observation(
+            frame=self.current_frame,
+            started=self._started,
+            current_frame=self.current_frame,
+            latest_frame=latest_index,
+            lag_frames=lag_frames,
+            buffer_frames=self.buffer.frame_count,
+            stale_steps=self._last_stale_steps,
+            consecutive_stale_steps=self._consecutive_stale_steps,
+            robot_anchor_pos_w=self.robot_anchor_pos_w[0],
+            robot_anchor_quat_w=self.robot_anchor_quat_w[0],
+        )
+        publisher.publish(payload)
+        self._last_observation_publish_frame = self.current_frame
+
 
 def use_online_textop_motion_command(
     env_cfg,
@@ -395,6 +439,8 @@ def use_online_textop_motion_command(
         "align_to_robot_start"
     ),
     reset_robot_to_reference: bool = True,
+    observation_publisher: TextOpObservationPublisher | None = None,
+    observation_publish_interval: int = 1,
 ) -> None:
     motion_cfg = env_cfg.commands[command_name]
     entity_name = getattr(motion_cfg, "entity_name", "robot")
@@ -410,4 +456,6 @@ def use_online_textop_motion_command(
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
+        observation_publisher=observation_publisher,
+        observation_publish_interval=observation_publish_interval,
     )

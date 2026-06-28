@@ -173,17 +173,20 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1
 ```
 
-For a scripted live prompt schedule while preserving RobotMDAR history and
-absolute pose across prompt changes:
+For a closed-loop feedback planner baseline, have the producer listen for MJLab
+feedback packets. This keeps the current prompt unless its selector query cadence
+fires or tracking gets stale, in which case it falls back to `stand still`:
 
 ```bash
 uv run python -m mjlab_textop.robotmdar.produce \
   --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
   --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
-  --schedule "walk forward:150,stand still:60,turn left:90,stand still:60" \
-  --schedule-repeat 4 \
-  --schedule-stop
+  --planner feedback \
+  --prompt "walk forward" \
+  --feedback-listen-port 8766 \
+  --query-every-blocks 4 \
+  --fallback-prompt "stand still"
 ```
 
 ```bash
@@ -197,6 +200,22 @@ uv run --extra cu128 mjlab-textop play-live \
 The live producer sends 50 Hz-indexed motion chunks. MJLab consumes them at the
 online command rate, clamps stale future frames during underruns, and reports
 online buffer/source diagnostics through command metrics.
+
+To publish lightweight MJLab state feedback over UDP while playing live, pass a
+feedback port:
+
+```bash
+uv run --extra cu128 mjlab-textop play-live \
+  --checkpoint-file $CHECKPOINT \
+  --host 127.0.0.1 \
+  --port 8765 \
+  --feedback-port 8766 \
+  --feedback-every-frames 5
+```
+
+Feedback packets are JSON payloads containing the current TextOp frame, buffer
+status, stale-step counters, and the tracked robot anchor pose. Camera images are
+not included yet.
 
 To run the same live source with TextOp's released `latest.onnx` policy:
 

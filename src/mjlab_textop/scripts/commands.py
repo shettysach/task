@@ -7,6 +7,10 @@ from typing import Literal
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
 
+from mjlab_textop.core.feedback.observation import (
+    UdpObservationPublisher,
+    UdpObservationPublisherCfg,
+)
 from mjlab_textop.core.online.live import (
     SocketTextOpOnlineSource,
     SocketTextOpSourceCfg,
@@ -47,6 +51,9 @@ class PlayLiveCommand:
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     )
+    feedback_host: str = "127.0.0.1"
+    feedback_port: int | None = None
+    feedback_every_frames: int = 5
 
 
 def play_live_textop_motion(
@@ -64,6 +71,16 @@ def play_live_textop_motion(
         )
     )
     source.start()
+    observation_publisher = (
+        UdpObservationPublisher(
+            UdpObservationPublisherCfg(
+                host=cfg.feedback_host,
+                port=cfg.feedback_port,
+            )
+        )
+        if cfg.feedback_port is not None
+        else None
+    )
     source_key = register_live_textop_source(source)
     try:
         task_name = register_textop_play_task(
@@ -73,6 +90,8 @@ def play_live_textop_motion(
             future_steps=cfg.future_steps,
             num_envs=cfg.num_envs,
             anchor_alignment=cfg.anchor_alignment,
+            observation_publisher=observation_publisher,
+            observation_publish_interval=cfg.feedback_every_frames,
         )
         play_cfg = PlayConfig(
             agent="trained",
@@ -84,6 +103,8 @@ def play_live_textop_motion(
         run_play(task_name, play_cfg)
     finally:
         unregister_live_textop_source(source_key)
+        if observation_publisher is not None:
+            observation_publisher.close()
         source.close()
 
 
