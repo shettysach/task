@@ -1,12 +1,35 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.request
 from typing import Any
 
 from mjlab_textop.robotmdar.feedback import FeedbackObservation
 
 from .base import PlannerContext
+
+ALLOWED_MOTION_PROMPTS = (
+    "stand still",
+    "stand stable",
+    "walk forward",
+    "turn left",
+    "turn right",
+    "step left",
+    "step right",
+    "stop",
+)
+
+_ALLOWED_MOTION_PROMPT_SET = set(ALLOWED_MOTION_PROMPTS)
+_PROMPT_ALIASES = {
+    "stand": "stand stable",
+    "stable": "stand stable",
+    "balance": "stand stable",
+    "recover": "stand stable",
+    "walk": "walk forward",
+    "forward": "walk forward",
+}
+_MOTION_PROMPT_PATTERN = re.compile(r"[a-z0-9 ,.-]+")
 
 
 class OpenAIChatPromptSelector:
@@ -60,7 +83,8 @@ class OpenAIChatPromptSelector:
                 max_completion_tokens=self.max_completion_tokens,
             )
         )
-        return str(response["choices"][0]["message"]["content"])
+        raw_prompt = str(response["choices"][0]["message"]["content"])
+        return sanitize_motion_prompt(raw_prompt, fallback=current_prompt)
 
     def _post_json(self, payload: dict[str, Any]) -> dict[str, Any]:
         request = urllib.request.Request(
@@ -113,7 +137,9 @@ def _make_chat_completions_payload(
 ) -> dict[str, Any]:
     state = payload["state"]
     text = (
-        "Return only one short RobotMDAR motion prompt\n"
+        "Choose exactly one command from this list:\n"
+        f"{_allowed_prompt_text()}\n\n"
+        "Return only the command text. No punctuation. No explanation.\n"
         f"State: {json.dumps(state, separators=(',', ':'))}"
     )
     messages: list[dict[str, Any]] = (
@@ -143,3 +169,28 @@ def _make_chat_completions_payload(
         "max_completion_tokens": max_completion_tokens,
         "temperature": 0,
     }
+
+
+def sanitize_motion_prompt(raw: str, *, fallback: str) -> str:
+    text = raw.strip()
+    text = text.splitlines()[0].strip()
+    text = text.strip("\"'`").strip()
+    text = re.sub(r"\s+", " ", text).lower()
+
+    if len(text) > 48:
+        return fallback
+    if not _MOTION_PROMPT_PATTERN.fullmatch(text):
+        return fallback
+    if text in _ALLOWED_MOTION_PROMPT_SET:
+        return text
+    if text in _PROMPT_ALIASES:
+        return _PROMPT_ALIASES[text]
+
+    for key, value in _PROMPT_ALIASES.items():
+        if key in text:
+            return value
+    return fallback
+
+
+def _allowed_prompt_text() -> str:
+    return "\n".join(ALLOWED_MOTION_PROMPTS)

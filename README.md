@@ -209,7 +209,7 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --feedback-listen-port 8766 \
   --vlm-base-url http://127.0.0.1:9379 \
   --vlm-model gemma-4-e2b-it \
-  --vlm-system-prompt "You are a motion-planning controller for a humanoid robot. Return only one short motion prompt."
+  --vlm-system-prompt "You choose one humanoid motion command. You must output exactly one command from the allowed list. No explanation."
 ```
 
 ```bash

@@ -28,9 +28,9 @@ from mjlab_textop.robotmdar.planner import (
 )
 
 DEFAULT_VLM_SYSTEM_PROMPT = (
-    "You are a motion-planning controller for a humanoid robot. "
-    "Pick one short motion prompt that best fits the current state. "
-    "Return only the prompt text."
+    "You choose one humanoid motion command. "
+    "You must output exactly one command from the allowed list. "
+    "No explanation."
 )
 
 
