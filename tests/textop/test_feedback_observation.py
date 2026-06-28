@@ -124,6 +124,50 @@ def test_udp_observation_publisher_attaches_latest_image(monkeypatch) -> None:
     }
 
 
+def test_udp_observation_publisher_attaches_each_image_once(monkeypatch) -> None:
+    fake_socket = _FakeSocket()
+    monkeypatch.setattr(
+        "mjlab_textop.core.feedback.observation.socket.socket",
+        lambda *args, **kwargs: fake_socket,
+    )
+    store = ObservationImageStore()
+    register_observation_image_store("test-image-store", store)
+
+    try:
+        publisher = UdpObservationPublisher(
+            UdpObservationPublisherCfg(
+                host="127.0.0.1",
+                port=9999,
+                image_store_key="test-image-store",
+            )
+        )
+        store.set_latest(
+            EncodedObservationImage(
+                mime_type="image/jpeg",
+                data_base64="abc123",
+                frame=10,
+            )
+        )
+        publisher.publish({"frame": 1})
+        publisher.publish({"frame": 2})
+        store.set_latest(
+            EncodedObservationImage(
+                mime_type="image/jpeg",
+                data_base64="def456",
+                frame=20,
+            )
+        )
+        publisher.publish({"frame": 3})
+        publisher.close()
+    finally:
+        unregister_observation_image_store("test-image-store")
+
+    payloads = [json.loads(data.decode("utf-8")) for data, _ in fake_socket.sent]
+    assert payloads[0]["image"]["data_base64"] == "abc123"
+    assert "image" not in payloads[1]
+    assert payloads[2]["image"]["data_base64"] == "def456"
+
+
 def test_udp_observation_publisher_rejects_invalid_port() -> None:
     with pytest.raises(ValueError, match="port must be positive"):
         UdpObservationPublisher(UdpObservationPublisherCfg(port=0))

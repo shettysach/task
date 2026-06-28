@@ -101,6 +101,7 @@ class FeedbackPlanner:
             return self.fallback_prompt
 
         if self._should_query_selector(context):
+            self._last_query_block = context.block_count
             try:
                 self.current_prompt = self.selector.choose_prompt(
                     observation=observation,
@@ -110,7 +111,6 @@ class FeedbackPlanner:
             except Exception as exc:
                 self._last_selector_error = type(exc).__name__
                 return self.current_prompt
-            self._last_query_block = context.block_count
 
         return self.current_prompt
 

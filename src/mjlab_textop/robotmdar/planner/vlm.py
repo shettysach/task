@@ -139,5 +139,7 @@ def _make_chat_completions_payload(
     return {
         "model": model,
         "messages": messages,
+        "max_tokens": max_completion_tokens,
         "max_completion_tokens": max_completion_tokens,
+        "temperature": 0,
     }

@@ -208,7 +208,8 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --prompt "walk forward" \
   --feedback-listen-port 8766 \
   --vlm-base-url http://127.0.0.1:9379 \
-  --vlm-model gemma-4-e2b-it
+  --vlm-model gemma-4-e2b-it \
+  --vlm-system-prompt "You are a motion-planning controller for a humanoid robot. Return only one short motion prompt."
 ```
 
 ```bash
@@ -237,9 +238,28 @@ uv run --extra cu128 mjlab-textop play-live \
 
 Feedback packets are JSON payloads containing the current TextOp frame, buffer
 status, stale-step counters, a coarse fall signal, and the tracked robot anchor
-pose. Camera images are not included yet. The fall signal defaults to a pelvis
+pose. The fall signal defaults to a pelvis
 height check plus an anchor tilt check; tune those with
 `--fall-min-anchor-height` and `--fall-min-anchor-up-z` if needed.
+
+To add image feedback for VLM prompting, enable offscreen RGB capture:
+
+```bash
+uv run --extra cu128 mjlab-textop play-live \
+  --checkpoint-file $CHECKPOINT \
+  --host 127.0.0.1 \
+  --port 8765 \
+  --feedback-port 8766 \
+  --feedback-every-frames 5 \
+  --feedback-image \
+  --feedback-image-every-frames 20 \
+  --feedback-image-width 320 \
+  --feedback-image-height 240 \
+  --feedback-image-jpeg-quality 60
+```
+
+The image is sent inline in the feedback packet as base64 JPEG, so nothing is
+written to disk.
 
 To run the same live source with TextOp's released `latest.onnx` policy:
 

@@ -49,6 +49,16 @@ class _FakeResponse:
         return json.dumps(self.payload).encode("utf-8")
 
 
+class _FailingSelector:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def choose_prompt(self, **kwargs) -> str:
+        del kwargs
+        self.calls += 1
+        raise TimeoutError("vlm timed out")
+
+
 def _observation(
     *,
     consecutive_stale_steps: int = 0,
@@ -152,6 +162,35 @@ def test_feedback_planner_queries_selector_on_cadence() -> None:
     planner.request_stop()
 
     assert provider.closed is True
+
+
+def test_feedback_planner_throttles_failed_selector_queries() -> None:
+    provider = _FakeObservationProvider(_observation())
+    selector = _FailingSelector()
+    planner = FeedbackPlanner(
+        observation_provider=provider,
+        selector=selector,
+        initial_prompt="walk forward",
+        query_every_blocks=3,
+        fallback_prompt="stand still",
+        stale_steps_threshold=5,
+    )
+
+    assert planner.choose_prompt(PlannerContext(frame_index=0, block_count=0)) == (
+        "walk forward"
+    )
+    assert planner.choose_prompt(PlannerContext(frame_index=8, block_count=1)) == (
+        "walk forward"
+    )
+    assert planner.choose_prompt(PlannerContext(frame_index=16, block_count=2)) == (
+        "walk forward"
+    )
+    assert selector.calls == 1
+
+    assert planner.choose_prompt(PlannerContext(frame_index=24, block_count=3)) == (
+        "walk forward"
+    )
+    assert selector.calls == 2
 
 
 def test_feedback_planner_falls_back_on_stale_tracking() -> None:
@@ -281,7 +320,9 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     assert posted["timeout"] == 1.5
     assert posted["content_type"] == "application/json"
     assert posted["payload"]["model"] == "gemma-4-e2b-it"
+    assert posted["payload"]["max_tokens"] == 16
     assert posted["payload"]["max_completion_tokens"] == 16
+    assert posted["payload"]["temperature"] == 0
     assert posted["payload"]["messages"][0]["role"] == "system"
     assert posted["payload"]["messages"][0]["content"][0]["text"] == (
         "You are a motion planner."

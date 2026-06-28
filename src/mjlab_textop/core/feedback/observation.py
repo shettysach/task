@@ -26,12 +26,16 @@ class UdpObservationPublisher:
             raise ValueError(f"Observation publisher port must be positive, got {cfg.port}")
         self.cfg = cfg
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._last_published_image_key: tuple[int | None, int] | None = None
 
     def publish(self, payload: dict[str, Any]) -> None:
         if self.cfg.image_store_key is not None:
             store = get_observation_image_store(self.cfg.image_store_key)
             image = None if store is None else store.latest()
-            if image is not None:
+            image_key = (
+                None if image is None else (image.frame, len(image.data_base64))
+            )
+            if image is not None and image_key != self._last_published_image_key:
                 payload = {
                     **payload,
                     "image": {
@@ -42,6 +46,7 @@ class UdpObservationPublisher:
                         "height": image.height,
                     },
                 }
+                self._last_published_image_key = image_key
         data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         self._sock.sendto(data, (self.cfg.host, self.cfg.port))
 
