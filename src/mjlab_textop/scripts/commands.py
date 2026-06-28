@@ -56,6 +56,7 @@ class PlayLiveCommand:
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     )
+    reset_robot_to_reference: bool = True
     feedback_host: str = "127.0.0.1"
     feedback_port: int | None = None
     feedback_every_frames: int = 5
@@ -109,6 +110,7 @@ def play_live_textop_motion(
             anchor_alignment=cfg.anchor_alignment,
             observation_publisher_cfg=observation_publisher_cfg,
             observation_publish_interval=cfg.feedback_every_frames,
+            reset_robot_to_reference=cfg.reset_robot_to_reference,
             fall_detection=FallDetectionCfg(
                 min_anchor_height=cfg.fall_min_anchor_height,
                 min_anchor_up_z=cfg.fall_min_anchor_up_z,
