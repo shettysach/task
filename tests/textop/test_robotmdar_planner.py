@@ -9,8 +9,8 @@ from mjlab_textop.robotmdar.feedback import (
 from mjlab_textop.robotmdar.planner import (
     ConstantPromptSelector,
     FeedbackPlanner,
-    HttpVlmPromptSelector,
     ManualPromptPlanner,
+    OpenAIChatPromptSelector,
     PlannerContext,
 )
 
@@ -234,15 +234,27 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
         posted["timeout"] = timeout
         posted["payload"] = json.loads(request.data.decode("utf-8"))
         posted["content_type"] = request.headers["Content-type"]
-        return _FakeResponse({"prompt": "turn left"})
+        return _FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "turn left",
+                        }
+                    }
+                ]
+            }
+        )
 
     monkeypatch.setattr(
         "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
         fake_urlopen,
     )
-    selector = HttpVlmPromptSelector(
-        endpoint="http://127.0.0.1:8080/choose_prompt",
+    selector = OpenAIChatPromptSelector(
+        base_url="http://127.0.0.1:9379",
+        model="gemma-4-e2b-it",
         timeout_sec=1.5,
+        max_completion_tokens=16,
     )
 
     prompt = selector.choose_prompt(
@@ -252,10 +264,14 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     )
 
     assert prompt == "turn left"
-    assert posted["url"] == "http://127.0.0.1:8080/choose_prompt"
+    assert posted["url"] == "http://127.0.0.1:9379/v1/chat/completions"
     assert posted["timeout"] == 1.5
     assert posted["content_type"] == "application/json"
-    assert posted["payload"]["frame_index"] == 64
-    assert posted["payload"]["block_count"] == 8
-    assert posted["payload"]["current_prompt"] == "walk forward"
-    assert posted["payload"]["observation"]["lag_frames"] == 8
+    assert posted["payload"]["model"] == "gemma-4-e2b-it"
+    assert posted["payload"]["max_completion_tokens"] == 16
+    content = posted["payload"]["messages"][0]["content"]
+    assert content[0]["type"] == "text"
+    assert "Return only the prompt" in content[0]["text"]
+    assert '"frame_index":64' in content[0]["text"]
+    assert '"current_prompt":"walk forward"' in content[0]["text"]
+    assert '"lag_frames":8' in content[0]["text"]

@@ -190,17 +190,14 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --fall-recovery-blocks 8
 ```
 
-For a local VLM prompt-selection smoke test, run a prompt endpoint separately.
-Use `--fixed-prompt` first to verify the HTTP loop without loading LiteRT-LM:
+For a local VLM prompt-selection smoke test, run any OpenAI-compatible chat
+server separately. With LiteRT-LM, for example:
 
 ```bash
-uv run python -m mjlab_textop.robotmdar.vlm_server \
-  --host 127.0.0.1 \
-  --port 8080 \
-  --fixed-prompt "walk forward"
+uvx litert-lm serve --host 127.0.0.1 --port 9379
 ```
 
-Then point the producer at that endpoint:
+Then point the producer at that server:
 
 ```bash
 uv run python -m mjlab_textop.robotmdar.produce \
@@ -210,17 +207,8 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --planner vlm \
   --prompt "walk forward" \
   --feedback-listen-port 8766 \
-  --vlm-endpoint http://127.0.0.1:8080/choose_prompt
-```
-
-To use LiteRT-LM/Gemma 4 instead of a fixed response, start the same endpoint
-with a model file:
-
-```bash
-uv run python -m mjlab_textop.robotmdar.vlm_server \
-  --host 127.0.0.1 \
-  --port 8080 \
-  --model-file /path/to/gemma-4-E2B-it.litertlm
+  --vlm-base-url http://127.0.0.1:9379 \
+  --vlm-model gemma-4-e2b-it
 ```
 
 ```bash

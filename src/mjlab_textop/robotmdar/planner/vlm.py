@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import urllib.request
-from dataclasses import asdict
 from typing import Any
 
 from mjlab_textop.robotmdar.feedback import FeedbackObservation
@@ -10,17 +9,28 @@ from mjlab_textop.robotmdar.feedback import FeedbackObservation
 from .base import PlannerContext
 
 
-class HttpVlmPromptSelector:
+class OpenAIChatPromptSelector:
     def __init__(
         self,
         *,
-        endpoint: str,
+        base_url: str,
+        model: str,
         timeout_sec: float = 2.0,
+        max_completion_tokens: int = 32,
     ) -> None:
+        if not model:
+            raise ValueError("model must be a non-empty string")
         if timeout_sec <= 0:
             raise ValueError(f"timeout_sec must be positive, got {timeout_sec}")
-        self.endpoint = endpoint
+        if max_completion_tokens <= 0:
+            raise ValueError(
+                "max_completion_tokens must be positive, "
+                f"got {max_completion_tokens}"
+            )
+        self.base_url = base_url.rstrip("/")
+        self.model = model
         self.timeout_sec = timeout_sec
+        self.max_completion_tokens = max_completion_tokens
 
     def choose_prompt(
         self,
@@ -30,17 +40,24 @@ class HttpVlmPromptSelector:
         current_prompt: str,
     ) -> str:
         payload = {
-            "frame_index": context.frame_index,
-            "block_count": context.block_count,
-            "current_prompt": current_prompt,
-            "observation": _observation_payload(observation),
+            "state": _make_state_payload(
+                observation=observation,
+                context=context,
+                current_prompt=current_prompt,
+            ),
         }
-        response = self._post_json(payload)
-        return str(response["prompt"])
+        response = self._post_json(
+            _make_chat_completions_payload(
+                payload=payload,
+                model=self.model,
+                max_completion_tokens=self.max_completion_tokens,
+            )
+        )
+        return str(response["choices"][0]["message"]["content"])
 
     def _post_json(self, payload: dict[str, Any]) -> dict[str, Any]:
         request = urllib.request.Request(
-            self.endpoint,
+            f"{self.base_url}/v1/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
@@ -49,9 +66,53 @@ class HttpVlmPromptSelector:
             return json.loads(response.read().decode("utf-8"))
 
 
-def _observation_payload(
+def _make_state_payload(
+    *,
     observation: FeedbackObservation | None,
-) -> dict[str, Any] | None:
+    context: PlannerContext,
+    current_prompt: str,
+) -> dict[str, Any]:
+    state: dict[str, Any] = {
+        "frame_index": context.frame_index,
+        "block_count": context.block_count,
+        "current_prompt": current_prompt,
+    }
     if observation is None:
-        return None
-    return asdict(observation)
+        state["has_observation"] = False
+        return state
+
+    state.update(
+        {
+            "has_observation": True,
+            "fallen": observation.fallen,
+            "fall_reason": observation.fall_reason,
+            "lag_frames": observation.lag_frames,
+            "buffer_frames": observation.buffer_frames,
+            "stale_steps": observation.stale_steps,
+            "consecutive_stale_steps": observation.consecutive_stale_steps,
+        }
+    )
+    return state
+
+
+def _make_chat_completions_payload(
+    *,
+    payload: dict[str, Any],
+    model: str,
+    max_completion_tokens: int,
+) -> dict[str, Any]:
+    state = payload["state"]
+    text = (
+        "Choose one short RobotMDAR motion prompt. Return only the prompt.\n"
+        f"State: {json.dumps(state, separators=(',', ':'))}"
+    )
+    return {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": text}],
+            }
+        ],
+        "max_completion_tokens": max_completion_tokens,
+    }

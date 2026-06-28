@@ -21,8 +21,8 @@ from mjlab_textop.robotmdar.feedback import UdpFeedbackReceiver
 from mjlab_textop.robotmdar.planner import (
     ConstantPromptSelector,
     FeedbackPlanner,
-    HttpVlmPromptSelector,
     ManualPromptPlanner,
+    OpenAIChatPromptSelector,
     PlannerContext,
     PromptPlanner,
 )
@@ -193,8 +193,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--prompt", default="walk")
     parser.add_argument("--feedback-listen-host", default="127.0.0.1")
     parser.add_argument("--feedback-listen-port", type=int, default=None)
-    parser.add_argument("--vlm-endpoint", default="http://127.0.0.1:8080/choose_prompt")
+    parser.add_argument("--vlm-base-url", default="http://127.0.0.1:9379")
+    parser.add_argument("--vlm-model", default=None)
     parser.add_argument("--vlm-timeout-sec", type=float, default=2.0)
+    parser.add_argument("--vlm-max-completion-tokens", type=int, default=32)
     parser.add_argument("--query-every-blocks", type=int, default=4)
     parser.add_argument("--fallback-prompt", default="stand still")
     parser.add_argument("--stale-steps-threshold", type=int, default=5)
@@ -224,6 +226,13 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             f"--vlm-timeout-sec must be positive, got {args.vlm_timeout_sec}"
         )
+    if args.vlm_max_completion_tokens <= 0:
+        raise ValueError(
+            "--vlm-max-completion-tokens must be positive, "
+            f"got {args.vlm_max_completion_tokens}"
+        )
+    if args.planner == "vlm" and not args.vlm_model:
+        raise ValueError("--vlm-model is required with --planner vlm")
     return args
 
 
@@ -281,9 +290,11 @@ def make_prompt_planner(args: argparse.Namespace) -> PromptPlanner:
             port=args.feedback_listen_port,
         )
         selector = (
-            HttpVlmPromptSelector(
-                endpoint=args.vlm_endpoint,
+            OpenAIChatPromptSelector(
+                base_url=args.vlm_base_url,
+                model=args.vlm_model,
                 timeout_sec=args.vlm_timeout_sec,
+                max_completion_tokens=args.vlm_max_completion_tokens,
             )
             if args.planner == "vlm"
             else ConstantPromptSelector(args.prompt)
