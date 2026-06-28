@@ -7,7 +7,6 @@ from mjlab_textop.robotmdar.feedback import (
 from mjlab_textop.robotmdar.planner import (
     ConstantPromptSelector,
     FeedbackPlanner,
-    GeneratedBlockInfo,
     ManualPromptPlanner,
     PlannerContext,
 )
@@ -127,50 +126,68 @@ def test_feedback_planner_queries_selector_on_cadence() -> None:
 
 
 def test_feedback_planner_falls_back_on_stale_tracking() -> None:
+    provider = _FakeObservationProvider(_observation())
     planner = FeedbackPlanner(
-        observation_provider=_FakeObservationProvider(
-            _observation(consecutive_stale_steps=5)
-        ),
+        observation_provider=provider,
         selector=ConstantPromptSelector("turn left"),
         initial_prompt="walk forward",
-        query_every_blocks=2,
+        query_every_blocks=10,
         fallback_prompt="stand still",
         stale_steps_threshold=5,
     )
 
     assert planner.choose_prompt(PlannerContext(frame_index=0, block_count=0)) == (
+        "turn left"
+    )
+
+    provider.observation = _observation(consecutive_stale_steps=5)
+
+    assert planner.choose_prompt(PlannerContext(frame_index=30, block_count=1)) == (
         "stand still"
     )
     assert "stale_tracking" in planner.log_suffix
 
+    provider.observation = _observation()
+
+    assert planner.choose_prompt(PlannerContext(frame_index=60, block_count=2)) == (
+        "turn left"
+    )
+
 
 def test_feedback_planner_falls_back_during_fall_recovery() -> None:
-    provider = _FakeObservationProvider(
-        _observation(fallen=True, fall_reason="anchor_height_below_0.35")
-    )
+    provider = _FakeObservationProvider(_observation())
     planner = FeedbackPlanner(
         observation_provider=provider,
-        selector=ConstantPromptSelector("backflip"),
-        initial_prompt="backflip",
-        query_every_blocks=1,
+        selector=ConstantPromptSelector("turn left"),
+        initial_prompt="walk forward",
+        query_every_blocks=10,
         fallback_prompt="stand still",
         stale_steps_threshold=5,
-        fall_recovery_blocks=2,
+        fall_recovery_blocks=3,
     )
 
     assert planner.choose_prompt(PlannerContext(frame_index=0, block_count=0)) == (
+        "turn left"
+    )
+
+    provider.observation = _observation(
+        fallen=True,
+        fall_reason="anchor_height_below_0.35",
+    )
+
+    assert planner.choose_prompt(PlannerContext(frame_index=30, block_count=1)) == (
         "stand still"
     )
     assert "fallen:anchor_height_below_0.35" in planner.log_suffix
 
     provider.observation = _observation()
 
-    assert planner.choose_prompt(PlannerContext(frame_index=30, block_count=1)) == (
+    assert planner.choose_prompt(PlannerContext(frame_index=60, block_count=2)) == (
         "stand still"
     )
     assert "fall_recovery" in planner.log_suffix
-    assert planner.choose_prompt(PlannerContext(frame_index=60, block_count=2)) == (
-        "backflip"
+    assert planner.choose_prompt(PlannerContext(frame_index=90, block_count=4)) == (
+        "turn left"
     )
 
 
@@ -190,25 +207,3 @@ def test_feedback_planner_keeps_current_prompt_when_feedback_is_old() -> None:
     assert planner.choose_prompt(PlannerContext(frame_index=0, block_count=0)) == (
         "walk forward"
     )
-
-
-def test_feedback_planner_ignores_block_sent_for_now() -> None:
-    planner = FeedbackPlanner(
-        observation_provider=_FakeObservationProvider(_observation()),
-        selector=ConstantPromptSelector("turn left"),
-        initial_prompt="walk forward",
-        query_every_blocks=1,
-        fallback_prompt="stand still",
-        stale_steps_threshold=5,
-    )
-
-    planner.on_block_sent(
-        GeneratedBlockInfo(
-            prompt="walk forward",
-            start_frame=0,
-            frames=30,
-            block_count=1,
-        )
-    )
-
-    assert planner.should_stop is False

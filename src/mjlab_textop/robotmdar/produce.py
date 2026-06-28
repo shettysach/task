@@ -21,7 +21,6 @@ from mjlab_textop.robotmdar.feedback import UdpFeedbackReceiver
 from mjlab_textop.robotmdar.planner import (
     ConstantPromptSelector,
     FeedbackPlanner,
-    GeneratedBlockInfo,
     ManualPromptPlanner,
     PlannerContext,
     PromptPlanner,
@@ -142,18 +141,9 @@ def run_producer(args: argparse.Namespace) -> None:
                                 "utf-8"
                             )
                         )
-                        start_frame = frame_index
                         block_frames = block.joint_pos.shape[0]
                         frame_index += block_frames
                         block_count += 1
-                        planner.on_block_sent(
-                            GeneratedBlockInfo(
-                                prompt=current_prompt,
-                                start_frame=start_frame,
-                                frames=block_frames,
-                                block_count=block_count,
-                            )
-                        )
 
                         block_duration = block_frames / args.fps
                         next_send_time += block_duration

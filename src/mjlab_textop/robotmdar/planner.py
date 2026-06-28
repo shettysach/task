@@ -20,14 +20,6 @@ class PlannerContext:
     block_count: int
 
 
-@dataclass(frozen=True)
-class GeneratedBlockInfo:
-    prompt: str
-    start_frame: int
-    frames: int
-    block_count: int
-
-
 class PromptPlanner(Protocol):
     @property
     def should_stop(self) -> bool:
@@ -48,9 +40,6 @@ class PromptPlanner(Protocol):
         ...
 
     def choose_prompt(self, context: PlannerContext) -> str:
-        ...
-
-    def on_block_sent(self, info: GeneratedBlockInfo) -> None:
         ...
 
 
@@ -113,9 +102,6 @@ class ManualPromptPlanner:
 
     def choose_prompt(self, context: PlannerContext) -> str:
         return self.prompt.text
-
-    def on_block_sent(self, info: GeneratedBlockInfo) -> None:
-        return
 
 
 class FeedbackPlanner:
@@ -186,7 +172,6 @@ class FeedbackPlanner:
             return self.current_prompt
 
         if observation is not None and observation.fallen:
-            self.current_prompt = self.fallback_prompt
             self._last_override_reason = (
                 "fallen"
                 if observation.fall_reason is None
@@ -195,32 +180,27 @@ class FeedbackPlanner:
             self._fall_recovery_until_block = (
                 context.block_count + self.fall_recovery_blocks
             )
-            return self.current_prompt
+            return self.fallback_prompt
 
         if (
             self._fall_recovery_until_block is not None
             and context.block_count < self._fall_recovery_until_block
         ):
-            self.current_prompt = self.fallback_prompt
             self._last_override_reason = "fall_recovery"
-            return self.current_prompt
+            return self.fallback_prompt
 
         if (
             observation is not None
             and observation.consecutive_stale_steps >= self.stale_steps_threshold
         ):
-            self.current_prompt = self.fallback_prompt
             self._last_override_reason = "stale_tracking"
-            return self.current_prompt
+            return self.fallback_prompt
 
         if self._should_query_selector(context):
             self.current_prompt = self.selector.choose_prompt(observation)
             self._last_query_block = context.block_count
 
         return self.current_prompt
-
-    def on_block_sent(self, info: GeneratedBlockInfo) -> None:
-        return
 
     def _should_query_selector(self, context: PlannerContext) -> bool:
         if self._last_query_block is None:
