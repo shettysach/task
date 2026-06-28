@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from mjlab_textop.robotmdar.feedback import (
     FeedbackObservation,
     parse_feedback_observation,
@@ -7,6 +9,7 @@ from mjlab_textop.robotmdar.feedback import (
 from mjlab_textop.robotmdar.planner import (
     ConstantPromptSelector,
     FeedbackPlanner,
+    HttpVlmPromptSelector,
     ManualPromptPlanner,
     PlannerContext,
 )
@@ -30,6 +33,20 @@ class _FakeObservationProvider:
 
     def latest_age_seconds(self) -> float | None:
         return self.age_seconds
+
+
+class _FakeResponse:
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return
+
+    def read(self) -> bytes:
+        return json.dumps(self.payload).encode("utf-8")
 
 
 def _observation(
@@ -207,3 +224,38 @@ def test_feedback_planner_keeps_current_prompt_when_feedback_is_old() -> None:
     assert planner.choose_prompt(PlannerContext(frame_index=0, block_count=0)) == (
         "walk forward"
     )
+
+
+def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> None:
+    posted = {}
+
+    def fake_urlopen(request, timeout):
+        posted["url"] = request.full_url
+        posted["timeout"] = timeout
+        posted["payload"] = json.loads(request.data.decode("utf-8"))
+        posted["content_type"] = request.headers["Content-type"]
+        return _FakeResponse({"prompt": "turn left"})
+
+    monkeypatch.setattr(
+        "mjlab_textop.robotmdar.planner.vlm.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    selector = HttpVlmPromptSelector(
+        endpoint="http://127.0.0.1:8080/choose_prompt",
+        timeout_sec=1.5,
+    )
+
+    prompt = selector.choose_prompt(
+        observation=_observation(),
+        context=PlannerContext(frame_index=64, block_count=8),
+        current_prompt="walk forward",
+    )
+
+    assert prompt == "turn left"
+    assert posted["url"] == "http://127.0.0.1:8080/choose_prompt"
+    assert posted["timeout"] == 1.5
+    assert posted["content_type"] == "application/json"
+    assert posted["payload"]["frame_index"] == 64
+    assert posted["payload"]["block_count"] == 8
+    assert posted["payload"]["current_prompt"] == "walk forward"
+    assert posted["payload"]["observation"]["lag_frames"] == 8

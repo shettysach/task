@@ -40,6 +40,7 @@ class FeedbackPlanner:
         self._stop = False
         self._last_query_block: int | None = None
         self._last_override_reason: str | None = None
+        self._last_selector_error: str | None = None
         self._fall_recovery_until_block: int | None = None
 
     @property
@@ -52,9 +53,12 @@ class FeedbackPlanner:
 
     @property
     def log_suffix(self) -> str:
-        if self._last_override_reason is None:
-            return ""
-        return f" planner_override={self._last_override_reason}"
+        suffix = ""
+        if self._last_override_reason is not None:
+            suffix += f" planner_override={self._last_override_reason}"
+        if self._last_selector_error is not None:
+            suffix += f" selector_error={self._last_selector_error}"
+        return suffix
 
     def start(self) -> None:
         self.observation_provider.start()
@@ -65,6 +69,7 @@ class FeedbackPlanner:
 
     def choose_prompt(self, context: PlannerContext) -> str:
         self._last_override_reason = None
+        self._last_selector_error = None
         observation = self.observation_provider.latest()
 
         if self._feedback_is_stale():
@@ -96,7 +101,15 @@ class FeedbackPlanner:
             return self.fallback_prompt
 
         if self._should_query_selector(context):
-            self.current_prompt = self.selector.choose_prompt(observation)
+            try:
+                self.current_prompt = self.selector.choose_prompt(
+                    observation=observation,
+                    context=context,
+                    current_prompt=self.current_prompt,
+                )
+            except Exception as exc:
+                self._last_selector_error = type(exc).__name__
+                return self.current_prompt
             self._last_query_block = context.block_count
 
         return self.current_prompt

@@ -30,7 +30,13 @@ class PromptPlanner(Protocol):
 
 
 class PromptSelector(Protocol):
-    def choose_prompt(self, observation: FeedbackObservation | None) -> str: ...
+    def choose_prompt(
+        self,
+        *,
+        observation: FeedbackObservation | None,
+        context: PlannerContext,
+        current_prompt: str,
+    ) -> str: ...
 
 
 class FeedbackObservationProvider(Protocol):

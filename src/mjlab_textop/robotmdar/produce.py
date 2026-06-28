@@ -21,6 +21,7 @@ from mjlab_textop.robotmdar.feedback import UdpFeedbackReceiver
 from mjlab_textop.robotmdar.planner import (
     ConstantPromptSelector,
     FeedbackPlanner,
+    HttpVlmPromptSelector,
     ManualPromptPlanner,
     PlannerContext,
     PromptPlanner,
@@ -184,10 +185,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--fps", type=float, default=50.0)
     parser.add_argument("--guidance-scale", type=float, default=5.0)
-    parser.add_argument("--planner", choices=("manual", "feedback"), default="manual")
+    parser.add_argument(
+        "--planner",
+        choices=("manual", "feedback", "vlm"),
+        default="manual",
+    )
     parser.add_argument("--prompt", default="walk")
     parser.add_argument("--feedback-listen-host", default="127.0.0.1")
     parser.add_argument("--feedback-listen-port", type=int, default=None)
+    parser.add_argument("--vlm-endpoint", default="http://127.0.0.1:8080/choose_prompt")
+    parser.add_argument("--vlm-timeout-sec", type=float, default=2.0)
     parser.add_argument("--query-every-blocks", type=int, default=4)
     parser.add_argument("--fallback-prompt", default="stand still")
     parser.add_argument("--stale-steps-threshold", type=int, default=5)
@@ -195,8 +202,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--feedback-timeout-sec", type=float, default=None)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
-    if args.planner == "feedback" and args.feedback_listen_port is None:
-        raise ValueError("--feedback-listen-port is required with --planner feedback")
+    if args.planner in {"feedback", "vlm"} and args.feedback_listen_port is None:
+        raise ValueError(
+            f"--feedback-listen-port is required with --planner {args.planner}"
+        )
     if args.query_every_blocks <= 0:
         raise ValueError(
             f"--query-every-blocks must be positive, got {args.query_every_blocks}"
@@ -210,6 +219,10 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(
             "--fall-recovery-blocks must be non-negative, "
             f"got {args.fall_recovery_blocks}"
+        )
+    if args.vlm_timeout_sec <= 0:
+        raise ValueError(
+            f"--vlm-timeout-sec must be positive, got {args.vlm_timeout_sec}"
         )
     return args
 
@@ -262,14 +275,22 @@ def _register_hydra_resolvers(OmegaConf) -> None:
 
 
 def make_prompt_planner(args: argparse.Namespace) -> PromptPlanner:
-    if args.planner == "feedback":
+    if args.planner in {"feedback", "vlm"}:
         receiver = UdpFeedbackReceiver(
             host=args.feedback_listen_host,
             port=args.feedback_listen_port,
         )
+        selector = (
+            HttpVlmPromptSelector(
+                endpoint=args.vlm_endpoint,
+                timeout_sec=args.vlm_timeout_sec,
+            )
+            if args.planner == "vlm"
+            else ConstantPromptSelector(args.prompt)
+        )
         return FeedbackPlanner(
             observation_provider=receiver,
-            selector=ConstantPromptSelector(args.prompt),
+            selector=selector,
             initial_prompt=args.prompt,
             query_every_blocks=args.query_every_blocks,
             fallback_prompt=args.fallback_prompt,
