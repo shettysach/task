@@ -253,6 +253,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     selector = OpenAIChatPromptSelector(
         base_url="http://127.0.0.1:9379",
         model="gemma-4-e2b-it",
+        system_prompt="You are a motion planner.",
         timeout_sec=1.5,
         max_completion_tokens=16,
     )
@@ -269,7 +270,11 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     assert posted["content_type"] == "application/json"
     assert posted["payload"]["model"] == "gemma-4-e2b-it"
     assert posted["payload"]["max_completion_tokens"] == 16
-    content = posted["payload"]["messages"][0]["content"]
+    assert posted["payload"]["messages"][0]["role"] == "system"
+    assert posted["payload"]["messages"][0]["content"][0]["text"] == (
+        "You are a motion planner."
+    )
+    content = posted["payload"]["messages"][1]["content"]
     assert content[0]["type"] == "text"
     assert "Return only the prompt" in content[0]["text"]
     assert '"frame_index":64' in content[0]["text"]

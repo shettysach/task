@@ -27,6 +27,12 @@ from mjlab_textop.robotmdar.planner import (
     PromptPlanner,
 )
 
+DEFAULT_VLM_SYSTEM_PROMPT = (
+    "You are a motion-planning controller for a humanoid robot. "
+    "Pick one short motion prompt that best fits the current state. "
+    "Return only the prompt text."
+)
+
 
 @dataclass(frozen=True)
 class RobotMdarRuntime:
@@ -195,6 +201,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--feedback-listen-port", type=int, default=None)
     parser.add_argument("--vlm-base-url", default="http://127.0.0.1:9379")
     parser.add_argument("--vlm-model", default=None)
+    parser.add_argument("--vlm-system-prompt", default=DEFAULT_VLM_SYSTEM_PROMPT)
     parser.add_argument("--vlm-timeout-sec", type=float, default=2.0)
     parser.add_argument("--vlm-max-completion-tokens", type=int, default=32)
     parser.add_argument("--query-every-blocks", type=int, default=4)
@@ -293,6 +300,7 @@ def make_prompt_planner(args: argparse.Namespace) -> PromptPlanner:
             OpenAIChatPromptSelector(
                 base_url=args.vlm_base_url,
                 model=args.vlm_model,
+                system_prompt=args.vlm_system_prompt,
                 timeout_sec=args.vlm_timeout_sec,
                 max_completion_tokens=args.vlm_max_completion_tokens,
             )

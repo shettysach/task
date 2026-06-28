@@ -15,6 +15,7 @@ class OpenAIChatPromptSelector:
         *,
         base_url: str,
         model: str,
+        system_prompt: str | None = None,
         timeout_sec: float = 2.0,
         max_completion_tokens: int = 32,
     ) -> None:
@@ -24,11 +25,11 @@ class OpenAIChatPromptSelector:
             raise ValueError(f"timeout_sec must be positive, got {timeout_sec}")
         if max_completion_tokens <= 0:
             raise ValueError(
-                "max_completion_tokens must be positive, "
-                f"got {max_completion_tokens}"
+                f"max_completion_tokens must be positive, got {max_completion_tokens}"
             )
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.system_prompt = system_prompt
         self.timeout_sec = timeout_sec
         self.max_completion_tokens = max_completion_tokens
 
@@ -50,6 +51,7 @@ class OpenAIChatPromptSelector:
             _make_chat_completions_payload(
                 payload=payload,
                 model=self.model,
+                system_prompt=self.system_prompt,
                 max_completion_tokens=self.max_completion_tokens,
             )
         )
@@ -99,20 +101,22 @@ def _make_chat_completions_payload(
     *,
     payload: dict[str, Any],
     model: str,
+    system_prompt: str | None,
     max_completion_tokens: int,
 ) -> dict[str, Any]:
     state = payload["state"]
     text = (
-        "Choose one short RobotMDAR motion prompt. Return only the prompt.\n"
+        "Return only one short RobotMDAR motion prompt\n"
         f"State: {json.dumps(state, separators=(',', ':'))}"
     )
+    messages: list[dict[str, Any]] = (
+        [{"role": "system", "content": [{"type": "text", "text": system_prompt}]}]
+        if system_prompt is not None
+        else []
+    )
+    messages.append({"role": "user", "content": [{"type": "text", "text": text}]})
     return {
         "model": model,
-        "messages": [
-            {
-                "role": "user",
-                "content": [{"type": "text", "text": text}],
-            }
-        ],
+        "messages": messages,
         "max_completion_tokens": max_completion_tokens,
     }
