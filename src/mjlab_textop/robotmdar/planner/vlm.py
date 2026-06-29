@@ -11,12 +11,14 @@ from mjlab_textop.robotmdar.feedback import FeedbackObservation, UdpFeedbackRece
 
 ALLOWED_MOTION_PROMPTS = (
     "stand still",
-    "stand stable",
     "walk forward",
-    "turn left",
-    "turn right",
     "step left",
     "step right",
+    "wave",
+    "punch",
+    "dance",
+    "sit",
+    "squat",
     "stop",
 )
 
