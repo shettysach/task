@@ -7,7 +7,6 @@ from mjlab_textop.robotmdar.feedback import (
     parse_feedback_observation,
 )
 from mjlab_textop.robotmdar.planner import (
-    ConstantPromptSelector,
     FeedbackPlanner,
     ManualPromptPlanner,
     OpenAIChatPromptSelector,
@@ -19,7 +18,6 @@ from mjlab_textop.robotmdar.planner.vlm import sanitize_motion_prompt
 class _FakeObservationProvider:
     def __init__(self, observation: FeedbackObservation | None = None) -> None:
         self.observation = observation
-        self.age_seconds: float | None = None
         self.started = False
         self.closed = False
 
@@ -31,9 +29,6 @@ class _FakeObservationProvider:
 
     def latest(self) -> FeedbackObservation | None:
         return self.observation
-
-    def latest_age_seconds(self) -> float | None:
-        return self.age_seconds
 
 
 class _FakeResponse:
@@ -60,12 +55,20 @@ class _FailingSelector:
         raise TimeoutError("vlm timed out")
 
 
+class _FixedSelector:
+    def __init__(self, prompt: str) -> None:
+        self.prompt = prompt
+
+    def choose_prompt(self, **kwargs) -> str:
+        del kwargs
+        return self.prompt
+
+
 def _observation(
     *,
     consecutive_stale_steps: int = 0,
     fallen: bool = False,
     fall_reason: str | None = None,
-    image_data_base64: str | None = None,
 ) -> FeedbackObservation:
     return FeedbackObservation(
         frame=10,
@@ -80,9 +83,6 @@ def _observation(
         fall_reason=fall_reason,
         robot_anchor_pos_w=(1.0, 2.0, 3.0),
         robot_anchor_quat_w=(1.0, 0.0, 0.0, 0.0),
-        image_mime_type="image/jpeg" if image_data_base64 is not None else None,
-        image_data_base64=image_data_base64,
-        image_frame=9 if image_data_base64 is not None else None,
     )
 
 
@@ -101,11 +101,6 @@ def test_parse_feedback_observation() -> None:
             "fall_reason": "anchor_height_below_0.35",
             "robot_anchor_pos_w": [1.0, 2.0, 3.0],
             "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
-            "image": {
-                "mime_type": "image/jpeg",
-                "data_base64": "abc123",
-                "frame": 9,
-            },
         }
     )
 
@@ -114,9 +109,6 @@ def test_parse_feedback_observation() -> None:
     assert observation.latest_frame == 18
     assert observation.fallen is True
     assert observation.fall_reason == "anchor_height_below_0.35"
-    assert observation.image_mime_type == "image/jpeg"
-    assert observation.image_data_base64 == "abc123"
-    assert observation.image_frame == 9
 
 
 def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> None:
@@ -145,9 +137,9 @@ def test_sanitize_motion_prompt_accepts_allowed_prompts() -> None:
 
 
 def test_sanitize_motion_prompt_maps_aliases() -> None:
-    assert sanitize_motion_prompt("recover", fallback="walk forward") == "stand stable"
+    assert sanitize_motion_prompt("recover", fallback="walk forward") == "walk forward"
     assert sanitize_motion_prompt("please walk now", fallback="stand stable") == (
-        "walk forward"
+        "stand stable"
     )
 
 
@@ -164,11 +156,9 @@ def test_feedback_planner_queries_selector_on_cadence() -> None:
     provider = _FakeObservationProvider(_observation())
     planner = FeedbackPlanner(
         observation_provider=provider,
-        selector=ConstantPromptSelector("turn left"),
+        selector=_FixedSelector("turn left"),
         initial_prompt="walk forward",
         query_every_blocks=2,
-        fallback_prompt="stand still",
-        stale_steps_threshold=5,
     )
 
     planner.start()
@@ -189,7 +179,7 @@ def test_feedback_planner_queries_selector_on_cadence() -> None:
     assert provider.closed is True
 
 
-def test_feedback_planner_throttles_failed_selector_queries() -> None:
+def test_feedback_planner_propagates_selector_errors() -> None:
     provider = _FakeObservationProvider(_observation())
     selector = _FailingSelector()
     planner = FeedbackPlanner(
@@ -197,109 +187,15 @@ def test_feedback_planner_throttles_failed_selector_queries() -> None:
         selector=selector,
         initial_prompt="walk forward",
         query_every_blocks=3,
-        fallback_prompt="stand still",
-        stale_steps_threshold=5,
     )
 
-    assert planner.choose_prompt(PlannerContext(frame_index=0, block_count=0)) == (
-        "walk forward"
-    )
-    assert planner.choose_prompt(PlannerContext(frame_index=8, block_count=1)) == (
-        "walk forward"
-    )
-    assert planner.choose_prompt(PlannerContext(frame_index=16, block_count=2)) == (
-        "walk forward"
-    )
+    try:
+        planner.choose_prompt(PlannerContext(frame_index=0, block_count=0))
+    except TimeoutError as exc:
+        assert str(exc) == "vlm timed out"
+    else:
+        raise AssertionError("expected selector error to propagate")
     assert selector.calls == 1
-
-    assert planner.choose_prompt(PlannerContext(frame_index=24, block_count=3)) == (
-        "walk forward"
-    )
-    assert selector.calls == 2
-
-
-def test_feedback_planner_falls_back_on_stale_tracking() -> None:
-    provider = _FakeObservationProvider(_observation())
-    planner = FeedbackPlanner(
-        observation_provider=provider,
-        selector=ConstantPromptSelector("turn left"),
-        initial_prompt="walk forward",
-        query_every_blocks=10,
-        fallback_prompt="stand still",
-        stale_steps_threshold=5,
-    )
-
-    assert planner.choose_prompt(PlannerContext(frame_index=0, block_count=0)) == (
-        "turn left"
-    )
-
-    provider.observation = _observation(consecutive_stale_steps=5)
-
-    assert planner.choose_prompt(PlannerContext(frame_index=30, block_count=1)) == (
-        "stand still"
-    )
-    assert "stale_tracking" in planner.log_suffix
-
-    provider.observation = _observation()
-
-    assert planner.choose_prompt(PlannerContext(frame_index=60, block_count=2)) == (
-        "turn left"
-    )
-
-
-def test_feedback_planner_falls_back_during_fall_recovery() -> None:
-    provider = _FakeObservationProvider(_observation())
-    planner = FeedbackPlanner(
-        observation_provider=provider,
-        selector=ConstantPromptSelector("turn left"),
-        initial_prompt="walk forward",
-        query_every_blocks=10,
-        fallback_prompt="stand still",
-        stale_steps_threshold=5,
-        fall_recovery_blocks=3,
-    )
-
-    assert planner.choose_prompt(PlannerContext(frame_index=0, block_count=0)) == (
-        "turn left"
-    )
-
-    provider.observation = _observation(
-        fallen=True,
-        fall_reason="anchor_height_below_0.35",
-    )
-
-    assert planner.choose_prompt(PlannerContext(frame_index=30, block_count=1)) == (
-        "stand still"
-    )
-    assert "fallen:anchor_height_below_0.35" in planner.log_suffix
-
-    provider.observation = _observation()
-
-    assert planner.choose_prompt(PlannerContext(frame_index=60, block_count=2)) == (
-        "stand still"
-    )
-    assert "fall_recovery" in planner.log_suffix
-    assert planner.choose_prompt(PlannerContext(frame_index=90, block_count=4)) == (
-        "turn left"
-    )
-
-
-def test_feedback_planner_keeps_current_prompt_when_feedback_is_old() -> None:
-    provider = _FakeObservationProvider(_observation())
-    provider.age_seconds = 10.0
-    planner = FeedbackPlanner(
-        observation_provider=provider,
-        selector=ConstantPromptSelector("turn left"),
-        initial_prompt="walk forward",
-        query_every_blocks=1,
-        fallback_prompt="stand still",
-        stale_steps_threshold=5,
-        feedback_timeout_sec=1.0,
-    )
-
-    assert planner.choose_prompt(PlannerContext(frame_index=0, block_count=0)) == (
-        "walk forward"
-    )
 
 
 def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> None:
@@ -335,8 +231,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     )
 
     prompt = selector.choose_prompt(
-        observation=_observation(image_data_base64="abc123"),
-        context=PlannerContext(frame_index=64, block_count=8),
+        observation=_observation(),
         current_prompt="walk forward",
     )
 
@@ -345,7 +240,6 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     assert posted["timeout"] == 1.5
     assert posted["content_type"] == "application/json"
     assert posted["payload"]["model"] == "gemma-4-e2b-it"
-    assert posted["payload"]["max_tokens"] == 16
     assert posted["payload"]["max_completion_tokens"] == 16
     assert posted["payload"]["temperature"] == 0
     assert posted["payload"]["messages"][0]["role"] == "system"
@@ -357,14 +251,11 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     assert "Choose exactly one command from this list" in content[0]["text"]
     assert "stand stable" in content[0]["text"]
     assert "Return only the command text" in content[0]["text"]
-    assert '"frame_index":64' in content[0]["text"]
-    assert '"current_prompt":"walk forward"' in content[0]["text"]
+    assert '"current_frame":10' in content[0]["text"]
+    assert '"latest_frame":18' in content[0]["text"]
     assert '"lag_frames":8' in content[0]["text"]
-    assert '"has_image":true' in content[0]["text"]
-    assert content[1] == {
-        "type": "image_url",
-        "image_url": {"url": "data:image/jpeg;base64,abc123"},
-    }
+    assert '"robot_anchor_pos_w":[1.0,2.0,3.0]' in content[0]["text"]
+    assert len(content) == 1
 
 
 def test_http_vlm_prompt_selector_sanitizes_response(monkeypatch) -> None:
@@ -393,6 +284,5 @@ def test_http_vlm_prompt_selector_sanitizes_response(monkeypatch) -> None:
 
     assert selector.choose_prompt(
         observation=_observation(),
-        context=PlannerContext(frame_index=64, block_count=8),
         current_prompt="stand stable",
     ) == "stand stable"

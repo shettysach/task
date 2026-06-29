@@ -19,7 +19,6 @@ from mjlab_textop.core.robotmdar import (
 )
 from mjlab_textop.robotmdar.feedback import UdpFeedbackReceiver
 from mjlab_textop.robotmdar.planner import (
-    ConstantPromptSelector,
     FeedbackPlanner,
     ManualPromptPlanner,
     OpenAIChatPromptSelector,
@@ -139,7 +138,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guidance-scale", type=float, default=5.0)
     parser.add_argument(
         "--planner",
-        choices=("manual", "feedback", "vlm"),
+        choices=("manual", "vlm"),
         default="manual",
     )
     parser.add_argument("--prompt", default="walk")
@@ -151,29 +150,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--vlm-timeout-sec", type=float, default=2.0)
     parser.add_argument("--vlm-max-completion-tokens", type=int, default=32)
     parser.add_argument("--query-every-blocks", type=int, default=4)
-    parser.add_argument("--fallback-prompt", default="stand still")
-    parser.add_argument("--stale-steps-threshold", type=int, default=5)
-    parser.add_argument("--fall-recovery-blocks", type=int, default=8)
-    parser.add_argument("--feedback-timeout-sec", type=float, default=None)
     parser.add_argument("--log-every-blocks", type=int, default=20)
     args = parser.parse_args()
-    if args.planner in {"feedback", "vlm"} and args.feedback_listen_port is None:
+    if args.planner == "vlm" and args.feedback_listen_port is None:
         raise ValueError(
             f"--feedback-listen-port is required with --planner {args.planner}"
         )
     if args.query_every_blocks <= 0:
         raise ValueError(
             f"--query-every-blocks must be positive, got {args.query_every_blocks}"
-        )
-    if args.stale_steps_threshold < 0:
-        raise ValueError(
-            "--stale-steps-threshold must be non-negative, "
-            f"got {args.stale_steps_threshold}"
-        )
-    if args.fall_recovery_blocks < 0:
-        raise ValueError(
-            "--fall-recovery-blocks must be non-negative, "
-            f"got {args.fall_recovery_blocks}"
         )
     if args.vlm_timeout_sec <= 0:
         raise ValueError(
@@ -372,31 +357,23 @@ def _register_hydra_resolvers(OmegaConf) -> None:
 
 
 def make_prompt_planner(args: argparse.Namespace) -> PromptPlanner:
-    if args.planner in {"feedback", "vlm"}:
+    if args.planner == "vlm":
         receiver = UdpFeedbackReceiver(
             host=args.feedback_listen_host,
             port=args.feedback_listen_port,
         )
-        selector = (
-            OpenAIChatPromptSelector(
-                base_url=args.vlm_base_url,
-                model=args.vlm_model,
-                system_prompt=args.vlm_system_prompt,
-                timeout_sec=args.vlm_timeout_sec,
-                max_completion_tokens=args.vlm_max_completion_tokens,
-            )
-            if args.planner == "vlm"
-            else ConstantPromptSelector(args.prompt)
+        selector = OpenAIChatPromptSelector(
+            base_url=args.vlm_base_url,
+            model=args.vlm_model,
+            system_prompt=args.vlm_system_prompt,
+            timeout_sec=args.vlm_timeout_sec,
+            max_completion_tokens=args.vlm_max_completion_tokens,
         )
         return FeedbackPlanner(
             observation_provider=receiver,
             selector=selector,
             initial_prompt=args.prompt,
             query_every_blocks=args.query_every_blocks,
-            fallback_prompt=args.fallback_prompt,
-            stale_steps_threshold=args.stale_steps_threshold,
-            fall_recovery_blocks=args.fall_recovery_blocks,
-            feedback_timeout_sec=args.feedback_timeout_sec,
         )
     return ManualPromptPlanner(args.prompt)
 

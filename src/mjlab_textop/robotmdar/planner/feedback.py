@@ -11,37 +11,17 @@ class FeedbackPlanner:
         selector: PromptSelector,
         initial_prompt: str,
         query_every_blocks: int,
-        fallback_prompt: str,
-        stale_steps_threshold: int,
-        fall_recovery_blocks: int = 8,
-        feedback_timeout_sec: float | None = None,
     ) -> None:
         if query_every_blocks <= 0:
             raise ValueError(
                 f"query_every_blocks must be positive, got {query_every_blocks}"
             )
-        if stale_steps_threshold < 0:
-            raise ValueError(
-                "stale_steps_threshold must be non-negative, "
-                f"got {stale_steps_threshold}"
-            )
-        if fall_recovery_blocks < 0:
-            raise ValueError(
-                f"fall_recovery_blocks must be non-negative, got {fall_recovery_blocks}"
-            )
         self.observation_provider = observation_provider
         self.selector = selector
         self.current_prompt = initial_prompt
         self.query_every_blocks = query_every_blocks
-        self.fallback_prompt = fallback_prompt
-        self.stale_steps_threshold = stale_steps_threshold
-        self.fall_recovery_blocks = fall_recovery_blocks
-        self.feedback_timeout_sec = feedback_timeout_sec
         self._stop = False
         self._last_query_block: int | None = None
-        self._last_override_reason: str | None = None
-        self._last_selector_error: str | None = None
-        self._fall_recovery_until_block: int | None = None
 
     @property
     def should_stop(self) -> bool:
@@ -53,12 +33,7 @@ class FeedbackPlanner:
 
     @property
     def log_suffix(self) -> str:
-        suffix = ""
-        if self._last_override_reason is not None:
-            suffix += f" planner_override={self._last_override_reason}"
-        if self._last_selector_error is not None:
-            suffix += f" selector_error={self._last_selector_error}"
-        return suffix
+        return ""
 
     def start(self) -> None:
         self.observation_provider.start()
@@ -68,49 +43,12 @@ class FeedbackPlanner:
         self.observation_provider.close()
 
     def choose_prompt(self, context: PlannerContext) -> str:
-        self._last_override_reason = None
-        self._last_selector_error = None
-        observation = self.observation_provider.latest()
-
-        if self._feedback_is_stale():
-            return self.current_prompt
-
-        if observation is not None and observation.fallen:
-            self._last_override_reason = (
-                "fallen"
-                if observation.fall_reason is None
-                else f"fallen:{observation.fall_reason}"
-            )
-            self._fall_recovery_until_block = (
-                context.block_count + self.fall_recovery_blocks
-            )
-            return self.fallback_prompt
-
-        if (
-            self._fall_recovery_until_block is not None
-            and context.block_count < self._fall_recovery_until_block
-        ):
-            self._last_override_reason = "fall_recovery"
-            return self.fallback_prompt
-
-        if (
-            observation is not None
-            and observation.consecutive_stale_steps >= self.stale_steps_threshold
-        ):
-            self._last_override_reason = "stale_tracking"
-            return self.fallback_prompt
-
         if self._should_query_selector(context):
             self._last_query_block = context.block_count
-            try:
-                self.current_prompt = self.selector.choose_prompt(
-                    observation=observation,
-                    context=context,
-                    current_prompt=self.current_prompt,
-                )
-            except Exception as exc:
-                self._last_selector_error = type(exc).__name__
-                return self.current_prompt
+            self.current_prompt = self.selector.choose_prompt(
+                observation=self.observation_provider.latest(),
+                current_prompt=self.current_prompt,
+            )
 
         return self.current_prompt
 
@@ -118,11 +56,3 @@ class FeedbackPlanner:
         if self._last_query_block is None:
             return True
         return context.block_count - self._last_query_block >= self.query_every_blocks
-
-    def _feedback_is_stale(self) -> bool:
-        if self.feedback_timeout_sec is None:
-            return False
-        latest_age = self.observation_provider.latest_age_seconds()
-        if latest_age is None:
-            return False
-        return latest_age > self.feedback_timeout_sec

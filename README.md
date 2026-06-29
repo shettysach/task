@@ -173,31 +173,16 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1
 ```
 
-For a closed-loop feedback planner baseline, have the producer listen for MJLab
-feedback packets. This keeps the current prompt unless its selector query cadence
-fires or tracking gets stale, in which case it falls back to `stand still`:
-
-```bash
-uv run python -m mjlab_textop.robotmdar.produce \
-  --ckpt /tmp/textop-data/TextOpRobotMDAR/logs/pretrained/checkpoint/ckpt_200000.pth \
-  --datadir /tmp/textop-data/TextOpRobotMDAR/dataset/BABEL-AMASS-ROBOT-23dof-FULL-50fps \
-  --skeleton-asset-root /tmp/textop-data/TextOpRobotMDAR/description/robots/g1 \
-  --planner feedback \
-  --prompt "walk forward" \
-  --feedback-listen-port 8766 \
-  --query-every-blocks 4 \
-  --fallback-prompt "stand still" \
-  --fall-recovery-blocks 8
-```
-
-For a local VLM prompt-selection smoke test, run any OpenAI-compatible chat
-server separately. With LiteRT-LM, for example:
+For VLM prompt selection, run an OpenAI-compatible chat server separately. With
+LiteRT-LM, for example:
 
 ```bash
 uvx litert-lm serve --host 127.0.0.1 --port 9379
 ```
 
-Then point the producer at that server:
+Then have the producer listen for MJLab feedback packets and point it at that
+server. The producer queries the VLM on a fixed block cadence and keeps the last
+selected prompt between queries:
 
 ```bash
 uv run python -m mjlab_textop.robotmdar.produce \
@@ -207,6 +192,7 @@ uv run python -m mjlab_textop.robotmdar.produce \
   --planner vlm \
   --prompt "walk forward" \
   --feedback-listen-port 8766 \
+  --query-every-blocks 4 \
   --vlm-base-url http://127.0.0.1:9379 \
   --vlm-model gemma-4-e2b-it \
   --vlm-system-prompt "You choose one humanoid motion command. You must output exactly one command from the allowed list. No explanation."

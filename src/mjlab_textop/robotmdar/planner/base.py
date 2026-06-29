@@ -34,7 +34,6 @@ class PromptSelector(Protocol):
         self,
         *,
         observation: FeedbackObservation | None,
-        context: PlannerContext,
         current_prompt: str,
     ) -> str: ...
 
@@ -45,5 +44,3 @@ class FeedbackObservationProvider(Protocol):
     def close(self) -> None: ...
 
     def latest(self) -> FeedbackObservation | None: ...
-
-    def latest_age_seconds(self) -> float | None: ...

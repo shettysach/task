@@ -3,17 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
-from uuid import uuid4
 
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
 
 from mjlab_textop.core.feedback.fall import FallDetectionCfg
-from mjlab_textop.core.feedback.image import (
-    ObservationImageStore,
-    register_observation_image_store,
-    unregister_observation_image_store,
-)
 from mjlab_textop.core.feedback.observation import UdpObservationPublisherCfg
 from mjlab_textop.core.online.live import (
     SocketTextOpOnlineSource,
@@ -26,7 +20,6 @@ from mjlab_textop.core.online.live_registry import (
 from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
 from mjlab_textop.core.task import ensure_textop_task_registered
-from mjlab_textop.scripts.live_play import FeedbackImageCaptureCfg, run_live_play
 from mjlab_textop.scripts.utils import ResolvedPolicy, register_textop_play_task
 
 
@@ -60,11 +53,6 @@ class PlayLiveCommand:
     feedback_host: str = "127.0.0.1"
     feedback_port: int | None = None
     feedback_every_frames: int = 5
-    feedback_image: bool = False
-    feedback_image_every_frames: int = 20
-    feedback_image_width: int = 320
-    feedback_image_height: int = 240
-    feedback_image_jpeg_quality: int = 60
     fall_min_anchor_height: float | None = 0.35
     fall_min_anchor_up_z: float | None = 0.3623577544766736
 
@@ -84,17 +72,10 @@ def play_live_textop_motion(
         )
     )
     source.start()
-    if cfg.feedback_image and cfg.feedback_port is None:
-        raise ValueError("--feedback-image requires --feedback-port")
-    image_store_key = f"play-live-feedback-image-{uuid4().hex}"
-    image_store = ObservationImageStore() if cfg.feedback_image else None
-    if image_store is not None:
-        register_observation_image_store(image_store_key, image_store)
     observation_publisher_cfg = (
         UdpObservationPublisherCfg(
             host=cfg.feedback_host,
             port=cfg.feedback_port,
-            image_store_key=image_store_key if image_store is not None else None,
         )
         if cfg.feedback_port is not None
         else None
@@ -123,22 +104,8 @@ def play_live_textop_motion(
             device=cfg.device,
             viewer=cfg.viewer,
         )
-        if image_store is None:
-            run_play(task_name, play_cfg)
-        else:
-            run_live_play(
-                task_name,
-                play_cfg,
-                image_capture_cfg=FeedbackImageCaptureCfg(
-                    store=image_store,
-                    every_steps=cfg.feedback_image_every_frames,
-                    width=cfg.feedback_image_width,
-                    height=cfg.feedback_image_height,
-                    jpeg_quality=cfg.feedback_image_jpeg_quality,
-                ),
-            )
+        run_play(task_name, play_cfg)
     finally:
-        unregister_observation_image_store(image_store_key)
         unregister_live_textop_source(source_key)
         source.close()
 
