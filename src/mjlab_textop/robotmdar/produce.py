@@ -145,7 +145,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--vlm-base-url", default="http://127.0.0.1:9379")
     parser.add_argument("--vlm-model", default=None)
     parser.add_argument("--vlm-system-prompt", default=DEFAULT_VLM_SYSTEM_PROMPT)
-    parser.add_argument("--vlm-timeout-sec", type=float, default=2.0)
+    parser.add_argument("--vlm-timeout-sec", type=float, default=30.0)
     parser.add_argument("--vlm-max-completion-tokens", type=int, default=32)
     parser.add_argument("--vlm-no-sanitize", action="store_true")
     parser.add_argument("--query-every-blocks", type=int, default=4)

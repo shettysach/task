@@ -166,9 +166,9 @@ def test_manual_prompt_planner_uses_current_prompt_without_starting_thread() -> 
 
 
 def test_sanitize_motion_prompt_accepts_allowed_prompts() -> None:
-    assert sanitize_motion_prompt("turn left", fallback="stand stable") == "turn left"
+    assert sanitize_motion_prompt("wave", fallback="stand still") == "wave"
     assert (
-        sanitize_motion_prompt('"walk forward"\nextra text', fallback="stand stable")
+        sanitize_motion_prompt('"walk forward"\nextra text', fallback="stand still")
         == "walk forward"
     )
 
@@ -270,7 +270,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
                 "choices": [
                     {
                         "message": {
-                            "content": "turn left",
+                            "content": "wave",
                         }
                     }
                 ]
@@ -294,7 +294,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
         current_prompt="walk forward",
     )
 
-    assert prompt == "turn left"
+    assert prompt == "wave"
     assert posted["url"] == "http://127.0.0.1:9379/v1/chat/completions"
     assert posted["timeout"] == 1.5
     assert posted["content_type"] == "application/json"
@@ -308,7 +308,7 @@ def test_http_vlm_prompt_selector_posts_context_and_observation(monkeypatch) -> 
     content = posted["payload"]["messages"][1]["content"]
     assert content[0]["type"] == "text"
     assert "Choose exactly one command from this list" in content[0]["text"]
-    assert "stand stable" in content[0]["text"]
+    assert "stand still" in content[0]["text"]
     assert "Return only the command text" in content[0]["text"]
     assert '"current_frame":10' in content[0]["text"]
     assert '"latest_frame":18' in content[0]["text"]
@@ -334,7 +334,7 @@ def test_http_vlm_prompt_selector_posts_image_from_feedback_path(
                 "choices": [
                     {
                         "message": {
-                            "content": "turn right",
+                            "content": "punch",
                         }
                     }
                 ]
@@ -356,7 +356,7 @@ def test_http_vlm_prompt_selector_posts_image_from_feedback_path(
     )
 
     content = posted["payload"]["messages"][0]["content"]
-    assert prompt == "turn right"
+    assert prompt == "punch"
     assert content[0]["type"] == "text"
     assert '"has_image":true' in content[0]["text"]
     assert '"image_frame":10' in content[0]["text"]

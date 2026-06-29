@@ -116,7 +116,7 @@ class OpenAIChatPromptSelector:
         model: str,
         system_prompt: str | None = None,
         sanitize_response: bool = True,
-        timeout_sec: float = 2.0,
+        timeout_sec: float = 30.0,
         max_completion_tokens: int = 32,
     ) -> None:
         if not model:
