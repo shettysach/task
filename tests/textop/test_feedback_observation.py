@@ -51,8 +51,6 @@ def test_make_online_textop_observation_payload() -> None:
         "buffer_frames": 32,
         "stale_steps": 0,
         "consecutive_stale_steps": 0,
-        "fallen": False,
-        "fall_reason": None,
         "robot_anchor_pos_w": [1.0, 2.0, 3.0],
         "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
         "image_path": "/tmp/mjlab_textop_latest.png",

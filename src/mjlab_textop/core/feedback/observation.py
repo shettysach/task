@@ -22,6 +22,26 @@ class UdpObservationPublisherCfg:
     port: int = 8766
 
 
+@dataclass(frozen=True, kw_only=True)
+class OnlineTextOpObservationCfg:
+    publisher: TextOpObservationPublisher | None = None
+    publish_interval: int = 1
+    image_path: str | None = None
+    image_publish_interval: int = 5
+
+    def __post_init__(self) -> None:
+        if self.publish_interval <= 0:
+            raise ValueError(
+                "publish_interval must be positive, "
+                f"got {self.publish_interval}"
+            )
+        if self.image_publish_interval <= 0:
+            raise ValueError(
+                "image_publish_interval must be positive, "
+                f"got {self.image_publish_interval}"
+            )
+
+
 class UdpObservationPublisher:
     def __init__(self, cfg: UdpObservationPublisherCfg) -> None:
         if cfg.port <= 0:
@@ -49,8 +69,6 @@ def make_online_textop_observation(
     consecutive_stale_steps: int,
     robot_anchor_pos_w: Any,
     robot_anchor_quat_w: Any,
-    fallen: bool = False,
-    fall_reason: str | None = None,
     image_path: str | None = None,
     image_frame: int | None = None,
 ) -> dict[str, Any]:
@@ -64,8 +82,6 @@ def make_online_textop_observation(
         "buffer_frames": int(buffer_frames),
         "stale_steps": int(stale_steps),
         "consecutive_stale_steps": int(consecutive_stale_steps),
-        "fallen": bool(fallen),
-        "fall_reason": fall_reason,
         "robot_anchor_pos_w": [
             float(item)
             for item in robot_anchor_pos_w.detach().cpu().reshape(-1).tolist()

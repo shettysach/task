@@ -7,8 +7,11 @@ from typing import Literal
 import tyro
 from mjlab.scripts.play import PlayConfig, run_play
 
-from mjlab_textop.core.feedback.fall import FallDetectionCfg
-from mjlab_textop.core.feedback.observation import UdpObservationPublisherCfg
+from mjlab_textop.core.feedback.observation import (
+    OnlineTextOpObservationCfg,
+    UdpObservationPublisher,
+    UdpObservationPublisherCfg,
+)
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
@@ -50,8 +53,6 @@ class PlayLiveCommand:
     feedback_image_every_frames: int = 5
     feedback_image_width: int | None = 320
     feedback_image_height: int | None = 240
-    fall_min_anchor_height: float | None = 0.35
-    fall_min_anchor_up_z: float | None = 0.3623577544766736
 
 
 def play_live_textop_motion(
@@ -74,6 +75,17 @@ def play_live_textop_motion(
         if cfg.feedback_port is not None
         else None
     )
+    observation_publisher = (
+        UdpObservationPublisher(observation_publisher_cfg)
+        if observation_publisher_cfg is not None
+        else None
+    )
+    observation = OnlineTextOpObservationCfg(
+        publisher=observation_publisher,
+        publish_interval=cfg.feedback_every_frames,
+        image_path=cfg.feedback_image_path,
+        image_publish_interval=cfg.feedback_image_every_frames,
+    )
     task_name = register_textop_play_task(
         policy=policy,
         live_source_cfg=live_source_cfg,
@@ -81,15 +93,8 @@ def play_live_textop_motion(
         future_steps=cfg.future_steps,
         num_envs=cfg.num_envs,
         anchor_alignment=cfg.anchor_alignment,
-        observation_publisher_cfg=observation_publisher_cfg,
-        observation_publish_interval=cfg.feedback_every_frames,
-        observation_image_path=cfg.feedback_image_path,
-        observation_image_publish_interval=cfg.feedback_image_every_frames,
+        observation=observation,
         reset_robot_to_reference=cfg.reset_robot_to_reference,
-        fall_detection=FallDetectionCfg(
-            min_anchor_height=cfg.fall_min_anchor_height,
-            min_anchor_up_z=cfg.fall_min_anchor_up_z,
-        ),
     )
     play_cfg = PlayConfig(
         agent="trained",

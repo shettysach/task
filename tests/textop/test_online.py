@@ -8,7 +8,9 @@ import pytest
 import torch
 from builders import fake_env, motion_block, write_mjlab_motion_npz
 
-from mjlab_textop.core.feedback.observation import UdpObservationPublisherCfg
+from mjlab_textop.core.feedback.observation import (
+    OnlineTextOpObservationCfg,
+)
 from mjlab_textop.core.mdp.online_commands import (
     OnlineTextOpMotionCommand,
     OnlineTextOpMotionCommandCfg,
@@ -455,8 +457,10 @@ def test_online_command_publishes_observations_on_interval() -> None:
         OnlineTextOpMotionCommandCfg(
             source=QueueTextOpOnlineSource([motion_block(frames=8)]),
             future_steps=5,
-            observation_publisher=publisher,
-            observation_publish_interval=2,
+            observation=OnlineTextOpObservationCfg(
+                publisher=publisher,
+                publish_interval=2,
+            ),
         ),
         fake_env(robot_anchor_pos=(10.0, 20.0, 30.0)),
     )
@@ -472,45 +476,8 @@ def test_online_command_publishes_observations_on_interval() -> None:
     assert publisher.payloads[0]["started"] is True
     assert publisher.payloads[0]["current_frame"] == 0
     assert publisher.payloads[0]["latest_frame"] == 7
-    assert publisher.payloads[0]["fallen"] is False
-    assert publisher.payloads[0]["fall_reason"] is None
     assert publisher.payloads[0]["robot_anchor_pos_w"] == [10.0, 20.0, 30.0]
     assert publisher.payloads[0]["robot_anchor_quat_w"] == [1.0, 0.0, 0.0, 0.0]
-
-
-def test_online_command_creates_observation_publisher_from_cfg(monkeypatch) -> None:
-    created = []
-
-    class _FakeUdpObservationPublisher:
-        def __init__(self, cfg):
-            self.cfg = cfg
-            self.payloads = []
-            created.append(self)
-
-        def publish(self, payload):
-            self.payloads.append(payload)
-
-    monkeypatch.setattr(
-        "mjlab_textop.core.mdp.online_commands.UdpObservationPublisher",
-        _FakeUdpObservationPublisher,
-    )
-    command = OnlineTextOpMotionCommand(
-        OnlineTextOpMotionCommandCfg(
-            source=QueueTextOpOnlineSource([motion_block(frames=8)]),
-            future_steps=5,
-            observation_publisher_cfg=UdpObservationPublisherCfg(port=8766),
-        ),
-        fake_env(),
-    )
-
-    command._update_command()
-    command._update_metrics()
-
-    assert len(created) == 1
-    assert command.observation_publisher is created[0]
-    assert created[0].payloads[0]["frame"] == 0
-    assert created[0].payloads[0]["fallen"] is True
-    assert created[0].payloads[0]["fall_reason"] == "anchor_height_below_0.35"
 
 
 def test_online_command_replay_reset_rewinds_source() -> None:

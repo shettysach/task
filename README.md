@@ -223,10 +223,7 @@ uv run --extra cu128 mjlab-textop play-live \
 ```
 
 Feedback packets are JSON payloads containing the current TextOp frame, buffer
-status, stale-step counters, a coarse fall signal, and the tracked robot anchor
-pose. The fall signal defaults to a pelvis
-height check plus an anchor tilt check; tune those with
-`--fall-min-anchor-height` and `--fall-min-anchor-up-z` if needed.
+status, stale-step counters, and the tracked robot anchor pose.
 
 To run the same live source with TextOp's released `latest.onnx` policy:
 

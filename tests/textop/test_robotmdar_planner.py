@@ -100,8 +100,6 @@ def _wait_for(condition) -> None:
 def _observation(
     *,
     consecutive_stale_steps: int = 0,
-    fallen: bool = False,
-    fall_reason: str | None = None,
     image_path: str | None = None,
     image_frame: int | None = None,
 ) -> FeedbackObservation:
@@ -114,8 +112,6 @@ def _observation(
         buffer_frames=32,
         stale_steps=0,
         consecutive_stale_steps=consecutive_stale_steps,
-        fallen=fallen,
-        fall_reason=fall_reason,
         robot_anchor_pos_w=(1.0, 2.0, 3.0),
         robot_anchor_quat_w=(1.0, 0.0, 0.0, 0.0),
         image_path=image_path,
@@ -134,8 +130,6 @@ def test_parse_feedback_observation() -> None:
             "buffer_frames": 32,
             "stale_steps": 0,
             "consecutive_stale_steps": 0,
-            "fallen": True,
-            "fall_reason": "anchor_height_below_0.35",
             "robot_anchor_pos_w": [1.0, 2.0, 3.0],
             "robot_anchor_quat_w": [1.0, 0.0, 0.0, 0.0],
             "image_path": "/tmp/mjlab_textop_latest.png",
@@ -146,8 +140,6 @@ def test_parse_feedback_observation() -> None:
     assert observation.robot_anchor_pos_w == (1.0, 2.0, 3.0)
     assert observation.robot_anchor_quat_w == (1.0, 0.0, 0.0, 0.0)
     assert observation.latest_frame == 18
-    assert observation.fallen is True
-    assert observation.fall_reason == "anchor_height_below_0.35"
     assert observation.image_path == "/tmp/mjlab_textop_latest.png"
     assert observation.image_frame == 10
 

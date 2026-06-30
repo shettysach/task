@@ -4,10 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from mjlab_textop.core.feedback.fall import FallDetectionCfg
 from mjlab_textop.core.feedback.observation import (
-    TextOpObservationPublisher,
-    UdpObservationPublisherCfg,
+    OnlineTextOpObservationCfg,
 )
 from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
@@ -72,12 +70,7 @@ def register_textop_play_task(
         "align_to_robot_start"
     ),
     reset_robot_to_reference: bool = True,
-    observation_publisher: TextOpObservationPublisher | None = None,
-    observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
-    observation_publish_interval: int = 1,
-    observation_image_path: str | None = None,
-    observation_image_publish_interval: int = 5,
-    fall_detection: FallDetectionCfg | None = None,
+    observation: OnlineTextOpObservationCfg | None = None,
 ) -> str:
     if policy.kind == "onnx":
         return register_online_textop_onnx_task(
@@ -88,12 +81,7 @@ def register_textop_play_task(
             num_envs=num_envs,
             anchor_alignment=anchor_alignment,
             reset_robot_to_reference=reset_robot_to_reference,
-            observation_publisher=observation_publisher,
-            observation_publisher_cfg=observation_publisher_cfg,
-            observation_publish_interval=observation_publish_interval,
-            observation_image_path=observation_image_path,
-            observation_image_publish_interval=observation_image_publish_interval,
-            fall_detection=fall_detection,
+            observation=observation,
         )
     else:
         return register_online_textop_task(
@@ -104,10 +92,5 @@ def register_textop_play_task(
             num_envs=num_envs,
             anchor_alignment=anchor_alignment,
             reset_robot_to_reference=reset_robot_to_reference,
-            observation_publisher=observation_publisher,
-            observation_publisher_cfg=observation_publisher_cfg,
-            observation_publish_interval=observation_publish_interval,
-            observation_image_path=observation_image_path,
-            observation_image_publish_interval=observation_image_publish_interval,
-            fall_detection=fall_detection,
+            observation=observation,
         )

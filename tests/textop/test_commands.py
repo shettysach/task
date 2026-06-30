@@ -6,6 +6,7 @@ import pytest
 import torch
 from mjlab.tasks.tracking.mdp.commands import MotionCommand, MotionCommandCfg
 
+from mjlab_textop.core.feedback.observation import OnlineTextOpObservationCfg
 from mjlab_textop.core.mdp.offline_commands import (
     TextOpMotionCommand,
     TextOpMotionCommandCfg,
@@ -139,7 +140,7 @@ def test_play_live_with_images_does_not_enable_video_recording(
     assert play_cfg.video is False
     assert play_cfg.video_width == 320
     assert play_cfg.video_height == 240
-    assert calls["task_kwargs"]["observation_image_path"] == str(image_path)
+    assert calls["task_kwargs"]["observation"].image_path == str(image_path)
 
 
 def _fake_register_task(calls: dict, kwargs: dict) -> str:

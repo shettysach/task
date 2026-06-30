@@ -4,6 +4,7 @@ import numpy as np
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_runner_cls
 from mjlab.tasks.tracking.rl import MotionTrackingOnPolicyRunner
 
+from mjlab_textop.core.feedback.observation import OnlineTextOpObservationCfg
 from mjlab_textop.core.mdp.offline_commands import TextOpMotionCommandCfg
 from mjlab_textop.core.mdp.online_commands import OnlineTextOpMotionCommandCfg
 from mjlab_textop.core.online.source import QueueTextOpOnlineSource, TextOpMotionBlock
@@ -140,16 +141,18 @@ def test_online_textop_live_task_uses_live_source_mode() -> None:
     task_name = register_online_textop_task(
         source=source,
         source_mode="live",
-        observation_image_path="/tmp/mjlab_textop_latest.png",
-        observation_image_publish_interval=7,
+        observation=OnlineTextOpObservationCfg(
+            image_path="/tmp/mjlab_textop_latest.png",
+            image_publish_interval=7,
+        ),
     )
     env_cfg = load_env_cfg(task_name, play=True)
 
     assert env_cfg.commands["motion"].source_mode == "live"
-    assert env_cfg.commands["motion"].observation_image_path == (
+    assert env_cfg.commands["motion"].observation.image_path == (
         "/tmp/mjlab_textop_latest.png"
     )
-    assert env_cfg.commands["motion"].observation_image_publish_interval == 7
+    assert env_cfg.commands["motion"].observation.image_publish_interval == 7
 
 
 def test_online_textop_task_removes_full_body_tracking_terms() -> None:

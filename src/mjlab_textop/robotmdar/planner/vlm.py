@@ -182,8 +182,6 @@ def _make_state_payload(
         "buffer_frames": observation.buffer_frames,
         "stale_steps": observation.stale_steps,
         "consecutive_stale_steps": observation.consecutive_stale_steps,
-        "fallen": observation.fallen,
-        "fall_reason": observation.fall_reason,
         "robot_anchor_pos_w": observation.robot_anchor_pos_w,
         "robot_anchor_quat_w": observation.robot_anchor_quat_w,
         "has_image": observation.image_path is not None,

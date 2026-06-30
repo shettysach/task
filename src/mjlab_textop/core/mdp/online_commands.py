@@ -8,11 +8,9 @@ from mjlab.envs import ManagerBasedRlEnv
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
 from mjlab.viewer import OffscreenRenderer
 
-from mjlab_textop.core.feedback.fall import FallDetectionCfg, detect_anchor_fall
 from mjlab_textop.core.feedback.observation import (
+    OnlineTextOpObservationCfg,
     TextOpObservationPublisher,
-    UdpObservationPublisher,
-    UdpObservationPublisherCfg,
     make_online_textop_observation,
     write_render_image,
 )
@@ -51,26 +49,13 @@ class OnlineTextOpMotionCommandCfg(CommandTermCfg):
     anchor_alignment: Literal["align_to_robot_start", "direct_world"] = (
         "align_to_robot_start"
     )
-    observation_publisher: TextOpObservationPublisher | None = None
-    observation_publisher_cfg: UdpObservationPublisherCfg | None = None
-    observation_publish_interval: int = 1
-    observation_image_path: str | None = None
-    observation_image_publish_interval: int = 5
-    fall_detection: FallDetectionCfg = field(default_factory=FallDetectionCfg)
+    observation: OnlineTextOpObservationCfg = field(
+        default_factory=OnlineTextOpObservationCfg
+    )
 
     def __post_init__(self) -> None:
         if self.future_steps <= 0:
             raise ValueError(f"future_steps must be positive, got {self.future_steps}")
-        if self.observation_publish_interval <= 0:
-            raise ValueError(
-                "observation_publish_interval must be positive, "
-                f"got {self.observation_publish_interval}"
-            )
-        if self.observation_image_publish_interval <= 0:
-            raise ValueError(
-                "observation_image_publish_interval must be positive, "
-                f"got {self.observation_image_publish_interval}"
-            )
         if self.source_mode not in ("replay", "live"):
             raise ValueError(f"Unknown source_mode: {self.source_mode}")
         if self.source_mode == "replay" and not isinstance(
@@ -117,11 +102,7 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._last_observation_publish_frame: int | None = None
         self._last_observation_image_frame: int | None = None
         self._observation_image_renderer: OffscreenRenderer | None = None
-        self.observation_publisher = self.cfg.observation_publisher
-        if self.observation_publisher is None and self.cfg.observation_publisher_cfg:
-            self.observation_publisher = UdpObservationPublisher(
-                self.cfg.observation_publisher_cfg
-            )
+        self.observation_publisher = self.cfg.observation.publisher
         self._anchor_pos_offset_w = torch.zeros(3, device=self.device)
 
         self.metrics["online_buffer_frames"] = torch.zeros(
@@ -438,15 +419,10 @@ class OnlineTextOpMotionCommand(CommandTerm):
         if (
             self._last_observation_publish_frame is not None
             and self.current_frame - self._last_observation_publish_frame
-            < self.cfg.observation_publish_interval
+            < self.cfg.observation.publish_interval
         ):
             return
 
-        fall_detection = detect_anchor_fall(
-            anchor_pos_w=self.robot_anchor_pos_w[0],
-            anchor_quat_w=self.robot_anchor_quat_w[0],
-            cfg=self.cfg.fall_detection,
-        )
         image_path = self._maybe_write_observation_image()
         payload = make_online_textop_observation(
             frame=self.current_frame,
@@ -459,8 +435,6 @@ class OnlineTextOpMotionCommand(CommandTerm):
             consecutive_stale_steps=self._consecutive_stale_steps,
             robot_anchor_pos_w=self.robot_anchor_pos_w[0],
             robot_anchor_quat_w=self.robot_anchor_quat_w[0],
-            fallen=fall_detection.fallen,
-            fall_reason=fall_detection.reason,
             image_path=image_path,
             image_frame=self._last_observation_image_frame,
         )
@@ -468,13 +442,13 @@ class OnlineTextOpMotionCommand(CommandTerm):
         self._last_observation_publish_frame = self.current_frame
 
     def _maybe_write_observation_image(self) -> str | None:
-        image_path = self.cfg.observation_image_path
+        image_path = self.cfg.observation.image_path
         if image_path is None:
             return None
         if (
             self._last_observation_image_frame is not None
             and self.current_frame - self._last_observation_image_frame
-            < self.cfg.observation_image_publish_interval
+            < self.cfg.observation.image_publish_interval
         ):
             return image_path
 
@@ -517,12 +491,7 @@ def use_online_textop_motion_command(
         "align_to_robot_start"
     ),
     reset_robot_to_reference: bool = True,
-    observation_publisher: TextOpObservationPublisher | None = None,
-    observation_publisher_cfg: UdpObservationPublisherCfg | None = None,
-    observation_publish_interval: int = 1,
-    observation_image_path: str | None = None,
-    observation_image_publish_interval: int = 5,
-    fall_detection: FallDetectionCfg | None = None,
+    observation: OnlineTextOpObservationCfg | None = None,
 ) -> None:
     motion_cfg = env_cfg.commands[command_name]
     entity_name = getattr(motion_cfg, "entity_name", "robot")
@@ -539,10 +508,5 @@ def use_online_textop_motion_command(
         source_mode=source_mode,
         anchor_alignment=anchor_alignment,
         reset_robot_to_reference=reset_robot_to_reference,
-        observation_publisher=observation_publisher,
-        observation_publisher_cfg=observation_publisher_cfg,
-        observation_publish_interval=observation_publish_interval,
-        observation_image_path=observation_image_path,
-        observation_image_publish_interval=observation_image_publish_interval,
-        fall_detection=fall_detection or FallDetectionCfg(),
+        observation=observation or OnlineTextOpObservationCfg(),
     )
