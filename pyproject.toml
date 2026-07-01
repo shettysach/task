@@ -21,7 +21,7 @@ cu128 = ["mjlab", "onnxruntime-gpu>=1.23.0,<1.27.0", "torch>=2.7.0"]
 mjlab-textop = "mjlab_textop.scripts.cli:main"
 
 [project.entry-points."mjlab.tasks"]
-mjlab_textop = "mjlab_textop.core.task"
+mjlab_textop = "mjlab_textop.plugin"
 
 [tool.uv.sources]
 mjlab = { git = "https://github.com/mujocolab/mjlab", rev = "0cdc56246999409b83622764f5b38edb660cf16e" }

@@ -10,7 +10,7 @@ from mjlab_textop.core.feedback.observation import (
 from mjlab_textop.core.mdp.online_commands import TextOpOnlineSourceMode
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.source import TextOpOnlineSource
-from mjlab_textop.core.task import (
+from mjlab_textop.tasks.online_textop.registration import (
     register_online_textop_onnx_task,
     register_online_textop_task,
 )

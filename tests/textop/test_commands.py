@@ -81,7 +81,7 @@ def test_play_live_without_images_uses_mjlab_run_play(monkeypatch, tmp_path) -> 
     calls = {}
 
     monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.ensure_textop_task_registered",
+        "mjlab_textop.scripts.commands.register_tasks",
         lambda: None,
     )
     monkeypatch.setattr(
@@ -114,7 +114,7 @@ def test_play_live_with_images_does_not_enable_video_recording(
     calls = {}
 
     monkeypatch.setattr(
-        "mjlab_textop.scripts.commands.ensure_textop_task_registered",
+        "mjlab_textop.scripts.commands.register_tasks",
         lambda: None,
     )
     monkeypatch.setattr(

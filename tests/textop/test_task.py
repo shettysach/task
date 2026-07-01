@@ -10,14 +10,14 @@ from mjlab_textop.core.mdp.online_commands import OnlineTextOpMotionCommandCfg
 from mjlab_textop.core.online.source import QueueTextOpOnlineSource, TextOpMotionBlock
 from mjlab_textop.core.onnx_policy import CustomOnnxPolicyRunner
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
-from mjlab_textop.core.task import (
+from mjlab_textop.tasks import ensure_textop_task_registered
+from mjlab_textop.tasks.online_textop.registration import (
     ONLINE_TEXTOP_ONNX_TASK_NAME,
     ONLINE_TEXTOP_TASK_NAME,
-    TEXTOP_TASK_NAME,
-    ensure_textop_task_registered,
     register_online_textop_onnx_task,
     register_online_textop_task,
 )
+from mjlab_textop.tasks.textop_tracking.registration import TEXTOP_TASK_NAME
 
 
 def test_textop_task_registers_once() -> None:

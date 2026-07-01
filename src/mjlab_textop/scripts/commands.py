@@ -15,8 +15,8 @@ from mjlab_textop.core.feedback.observation import (
 from mjlab_textop.core.online.live import SocketTextOpSourceCfg
 from mjlab_textop.core.online.replay import make_mjlab_npz_replay_source
 from mjlab_textop.core.schema import TEXTOP_FUTURE_STEPS
-from mjlab_textop.core.task import ensure_textop_task_registered
 from mjlab_textop.scripts.utils import ResolvedPolicy, register_textop_play_task
+from mjlab_textop.tasks import register_tasks
 
 
 @dataclass(kw_only=True)
@@ -59,7 +59,7 @@ def play_live_textop_motion(
     *,
     policy: ResolvedPolicy,
 ) -> None:
-    ensure_textop_task_registered()
+    register_tasks()
     live_source_cfg = SocketTextOpSourceCfg(
         host=cfg.host,
         port=cfg.port,
@@ -131,7 +131,7 @@ def play_online_textop_motion(
     motion_file: Path,
     policy: ResolvedPolicy,
 ) -> None:
-    ensure_textop_task_registered()
+    register_tasks()
     source = make_mjlab_npz_replay_source(motion_file, block_size=cfg.block_size)
     task_name = register_textop_play_task(
         policy=policy,
